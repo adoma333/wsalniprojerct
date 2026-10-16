@@ -1,0 +1,10 @@
+node_modules/
+dist/
+android/
+*.keystore
+*.jks
+*.p12
+.env
+.env.*
+!.env.example
+capacitor.config.json
