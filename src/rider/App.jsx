@@ -39,6 +39,7 @@ export default function App() {
       {ready && !st.error && (
         !onb ? <Onboarding onDone={() => { localStorage.setItem('w_onb', '1'); setOnb(true) }} />
           : !user ? <Register uid={st.uid} />
+            : user.blocked ? <div className="empty" style={{ paddingTop: 140 }}><b>{tr('الحساب موقوف مؤقتًا', 'Account suspended')}</b><div className="small">{tr('تواصل مع الدعم لمزيد من المعلومات', 'Please contact support')}</div><a className="btn btn-primary mt" href={`https://wa.me/${st.settings.support.whatsapp}`}>{tr('تواصل مع الدعم', 'Contact support')}</a></div>
             : (
               <NavProvider render={(p) => { const C = PAGES[p.name]; return C ? <C {...p.params} /> : null }}>
                 <Home />
