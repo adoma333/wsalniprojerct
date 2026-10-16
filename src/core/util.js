@@ -100,7 +100,7 @@ export function seeded(seed) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296)
 }
 export function initials(name = '') {
-  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'و'
+  return name.trim().split(/\s+/).slice(0, 2).map((w) => (w.startsWith('ال') && w.length > 2 ? w[2] : w[0])).join(' ').toUpperCase() || 'و'
 }
 export function greeting() {
   const h = new Date().getHours()

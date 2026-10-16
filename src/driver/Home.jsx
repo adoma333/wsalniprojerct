@@ -1,0 +1,462 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Menu, Zap, Crosshair, Layers, Phone, MessageCircle, Navigation, MapPin, Flag, Banknote, Wallet, Clock, Star, X, ShieldAlert, Map as MapIco,
+  CalendarClock, BadgeDollarSign, Gift, Users, Bell, LifeBuoy, Info, Check, Route as RouteIco, Coins,
+} from 'lucide-react'
+import MapView from '@/map/MapView.jsx'
+import { useApp } from '@/ui/app-ctx.jsx'
+import { useNav, Drawer, DrawerItem, Avatar, Sheet, Stars, toast } from '@/ui/kit.jsx'
+import { ClassCar, Coin } from '@/ui/art.jsx'
+import { RouteSummary } from '@/ui/ride-ui.jsx'
+import { tr, money, mins, km, haversine, haptic, offsetPoint, along, pick, num } from '@/core/util.js'
+import { CITIES } from '@/core/config.js'
+import { currentPosition, watchPosition, route, reverse, mapsLink } from '@/core/geo.js'
+import { quote, driverNet } from '@/core/pricing.js'
+import { watchSearching, watchDriverRides, acceptRide, declineRide, updateRide, updateDriver, store, cancelRide, sos } from '@/core/api.js'
+
+const ACTIVE = ['accepted', 'arrived', 'ongoing']
+const RIDER_NAMES = ['سارة', 'محمد', 'هدى', 'علي', 'مريم', 'يوسف', 'نور', 'عمر', 'ليلى', 'خالد']
+const CLASS_OK = { eco: ['eco', 'moto'], comfort: ['eco', 'comfort', 'moto'], family: ['eco', 'comfort', 'family', 'moto'], vip: ['eco', 'comfort', 'vip'], moto: ['moto'] }
+
+export default function Home() {
+  const { uid, driver, settings } = useApp()
+  const nav = useNav()
+  const mapRef = useRef(null)
+  const panelRef = useRef(null)
+  const city = CITIES.find((c) => c.id === driver.city) || CITIES[0]
+  const [pos, setPos] = useState(driver.loc?.coords || null)
+  const [heading, setHeading] = useState(0)
+  const [requests, setRequests] = useState([])
+  const [simReq, setSimReq] = useState(null)
+  const [rides, setRides] = useState([])
+  const [drawer, setDrawer] = useState(false)
+  const [sat, setSat] = useState(false)
+  const [panelH, setPanelH] = useState(140)
+  const [now, setNow] = useState(Date.now())
+  const online = !!driver.online
+  const me = pos || city.center
+
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t) }, [])
+  useEffect(() => { currentPosition().then((p) => { if (p) { setPos(p.coords); mapRef.current?.flyTo(p.coords, 15.5) } }) }, [])
+
+  const ride = useMemo(() => rides.find((r) => ACTIVE.includes(r.status)) || rides.find((r) => r.status === 'completed' && !r.driverClosed && Date.now() - (r.completedAt || 0) < 3 * 3600e3) || null, [rides])
+  const simDriving = ride?.simulated && ACTIVE.includes(ride.status)
+
+  // تتبع الموقع الحقيقي (إلا أثناء رحلة محاكاة فالسيارة تتحرك تلقائيًا)
+  useEffect(() => {
+    let stop = () => {}
+    watchPosition((p) => { if (!simRef.current) { setPos(p.coords); if (p.heading != null && !isNaN(p.heading)) setHeading(p.heading) } }).then((s) => (stop = s))
+    return () => stop()
+  }, [])
+  const simRef = useRef(false)
+  simRef.current = simDriving
+
+  // نشر الموقع
+  const lastPush = useRef(0)
+  useEffect(() => {
+    if (!online || !pos) return
+    if (Date.now() - lastPush.current < 4000) return
+    lastPush.current = Date.now()
+    updateDriver(uid, { loc: { coords: pos, heading }, lastSeen: Date.now() }).catch(() => {})
+    if (ride && ACTIVE.includes(ride.status) && !ride.simulated) updateRide(ride.id, { driverLoc: { coords: pos, heading } }).catch(() => {})
+  }, [pos, online])
+  useEffect(() => {
+    if (!online) return
+    const t = setInterval(() => updateDriver(uid, { lastSeen: Date.now() }).catch(() => {}), 60000)
+    return () => clearInterval(t)
+  }, [online])
+
+  useEffect(() => watchDriverRides(uid, setRides), [uid])
+  useEffect(() => watchSearching(setRequests), [])
+
+  // طلبات حقيقية مناسبة
+  const myClass = driver.vehicle?.class || 'eco'
+  const incoming = useMemo(() => {
+    if (!online || ride) return null
+    const list = requests
+      .filter((r) => !(r.declinedBy || []).includes(uid) && (CLASS_OK[myClass] || ['eco']).includes(r.classId) && haversine(me, r.pickup.coords) < 25 && Date.now() - r.createdAt < 5 * 60000)
+      .sort((a, b) => haversine(me, a.pickup.coords) - haversine(me, b.pickup.coords))
+    return list[0] || null
+  }, [requests, online, !!ride, uid, Math.round(me[0] * 200), Math.round(me[1] * 200)])
+
+  // طلبات محاكاة عند عدم وجود طلبات حقيقية
+  useEffect(() => {
+    if (!online || ride || incoming || simReq || !settings.fleetSimulation) return
+    const t = setTimeout(async () => {
+      const a = Math.random() * Math.PI * 2, d = 0.4 + Math.random() * 1.6
+      const pu = offsetPoint(me, Math.cos(a) * d, Math.sin(a) * d)
+      const b = Math.random() * Math.PI * 2, d2 = 2 + Math.random() * 6
+      const dof = offsetPoint(pu, Math.cos(b) * d2, Math.sin(b) * d2)
+      const [r, p1, p2] = await Promise.all([route([pu, dof]), reverse(pu), reverse(dof)])
+      const cls = settings.pricing.classes.find((c) => c.id === (CLASS_OK[myClass] || ['eco'])[0]) || settings.pricing.classes[0]
+      setSimReq({
+        id: 'sim-' + Date.now(), simulated: true, createdAt: Date.now(), riderName: pick(RIDER_NAMES), riderRating: +(4.5 + Math.random() * 0.5).toFixed(1), riderPhone: '+21891' + Math.floor(1e6 + Math.random() * 9e6),
+        pickup: { ...p1, coords: pu }, dropoff: { ...p2, coords: dof }, stops: [], route: { coords: r.coords, distanceKm: r.distanceKm, durationMin: r.durationMin },
+        classId: cls.id, className: cls.ar, fare: quote(cls, r, settings.pricing), payment: Math.random() > 0.8 ? 'points' : 'cash', note: Math.random() > 0.7 ? 'أنا أمام المدخل الرئيسي' : '',
+      })
+    }, 9000 + Math.random() * 14000)
+    return () => clearTimeout(t)
+  }, [online, !!ride, !!incoming, !!simReq, settings.fleetSimulation])
+
+  const request = incoming || simReq
+
+  // تحريك سيارة المحاكاة على المسار
+  useEffect(() => {
+    if (!simDriving) return
+    let coords, dur
+    if (ride.status === 'accepted') { coords = ride.approach?.coords; dur = 22000 }
+    else if (ride.status === 'ongoing') { coords = ride.route?.coords; dur = 35000 }
+    else return
+    if (!coords?.length) return
+    const t0 = ride.phaseAt || Date.now()
+    const t = setInterval(() => {
+      const k = Math.min(1, (Date.now() - t0) / dur)
+      const pt = along(coords, k)
+      if (pt) { setPos(pt.p); setHeading(pt.h) }
+      if (k >= 1) clearInterval(t)
+    }, 1000)
+    return () => clearInterval(t)
+  }, [simDriving, ride?.status, ride?.id])
+
+  // ارتفاع اللوحة
+  useEffect(() => {
+    if (!panelRef.current) return
+    const ro = new ResizeObserver(() => setPanelH(panelRef.current?.offsetHeight || 0))
+    ro.observe(panelRef.current)
+    return () => ro.disconnect()
+  })
+
+  // مسار الوصول للراكب
+  const [approach, setApproach] = useState(null)
+  useEffect(() => {
+    if (ride?.status !== 'accepted') { setApproach(null); return }
+    if (ride.approach?.coords) setApproach(ride.approach)
+    else route([pos || me, ride.pickup.coords]).then(setApproach)
+  }, [ride?.id, ride?.status])
+
+  // الإطار
+  useEffect(() => {
+    const m = mapRef.current
+    if (!m) return
+    const t = setTimeout(() => {
+      if (request && !ride) m.fit([me, request.pickup.coords, request.dropoff.coords], { bottom: 120, top: 380 })
+      else if (ride?.status === 'accepted') m.fit([me, ride.pickup.coords], { bottom: panelH + 40, top: 110 })
+      else if (ride?.status === 'ongoing') m.fit(ride.route?.coords || [ride.pickup.coords, ride.dropoff.coords], { bottom: panelH + 40, top: 110 })
+      else if (ride?.status === 'arrived') m.flyTo(ride.pickup.coords, 16.5)
+    }, 250)
+    return () => clearTimeout(t)
+  }, [request?.id, ride?.id, ride?.status])
+
+  // ===== التحكم =====
+  const toggleOnline = async () => {
+    haptic('medium')
+    if (online) {
+      const add = driver.onlineSince ? Date.now() - driver.onlineSince : 0
+      const day = new Date().toISOString().slice(0, 10)
+      await updateDriver(uid, { online: false, onlineSince: null, onlineMs: driver.onlineDay === day ? (driver.onlineMs || 0) + add : add, onlineDay: day })
+      setSimReq(null)
+      toast(tr('أنت الآن غير متصل', 'You are offline'))
+    } else {
+      const p = pos || (await currentPosition())?.coords || city.center
+      await updateDriver(uid, { online: true, onlineSince: Date.now(), loc: { coords: p, heading }, lastSeen: Date.now() })
+      toast(tr('أنت متصل الآن، بانتظار الطلبات 🚀', 'You are online 🚀'), 'success')
+    }
+  }
+
+  const accept = async () => {
+    const req = request
+    haptic('heavy')
+    const d = { id: uid, name: driver.name, phone: driver.phone, photo: driver.photo || '', rating: rating(driver), car: `${driver.vehicle?.make || ''} ${driver.vehicle?.model || ''}`.trim(), color: driver.vehicle?.color || '', plate: driver.vehicle?.plate || '', simulated: false }
+    if (req.simulated) {
+      const ap = await route([pos || me, req.pickup.coords])
+      const { id, ...rest } = req
+      await store.add('rides', { ...rest, riderId: 'sim-rider', status: 'accepted', driverId: uid, driver: d, acceptedAt: Date.now(), updatedAt: Date.now(), phaseAt: Date.now(), approach: { coords: ap.coords, durationMin: ap.durationMin, distanceKm: ap.distanceKm }, declinedBy: [] })
+      setSimReq(null)
+    } else {
+      const ok = await acceptRide(req.id, d)
+      if (!ok) return toast(tr('سبقك سائق آخر لهذا الطلب', 'Another driver took it'), 'error')
+      updateRide(req.id, { driverLoc: { coords: pos || me, heading } }).catch(() => {})
+    }
+    toast(tr('تم قبول الطلب، توجّه للراكب', 'Accepted — head to pickup'), 'success')
+  }
+  const decline = async () => {
+    if (request.simulated) setSimReq(null)
+    else await declineRide(request.id, uid)
+    updateDriver(uid, { declined: store.inc(1) }).catch(() => {})
+  }
+
+  // ===== العلامات =====
+  const markers = [{ id: 'me', type: 'car', coords: me, heading, size: 52, smooth: 1000 }]
+  const routes = []
+  if (request && !ride) {
+    markers.push({ id: 'rp', type: 'pickup', coords: request.pickup.coords, label: request.pickup.title })
+    markers.push({ id: 'rd', type: 'drop', coords: request.dropoff.coords, label: request.dropoff.title })
+    if (request.route?.coords) routes.push({ id: 'req', coords: request.route.coords })
+  }
+  if (ride && ACTIVE.includes(ride.status)) {
+    if (ride.status !== 'ongoing') markers.push({ id: 'pu', type: 'pickup', coords: ride.pickup.coords, label: ride.riderName })
+    markers.push({ id: 'do', type: 'drop', coords: ride.dropoff.coords, label: ride.dropoff.title })
+    if (ride.status === 'accepted' && approach) routes.push({ id: 'appr', coords: approach.coords, color: '#2E90FA', from: '#2E90FA', to: '#1d4ed8' })
+    if (ride.status === 'ongoing' && ride.route?.coords) routes.push({ id: 'trip', coords: ride.route.coords })
+  }
+
+  // إحصاءات اليوم
+  const day = new Date().toISOString().slice(0, 10)
+  const todayRides = rides.filter((r) => r.status === 'completed' && new Date(r.completedAt || r.createdAt).toISOString().slice(0, 10) === day)
+  const todayEarn = todayRides.reduce((s, r) => s + (r.driverNet ?? driverNet(r.fare?.total || 0, settings.pricing).net) + (r.tip || 0), 0)
+  const onlineMs = (driver.onlineDay === day ? driver.onlineMs || 0 : 0) + (online && driver.onlineSince ? now - driver.onlineSince : 0)
+  const hm = `${Math.floor(onlineMs / 3600000)}h ${Math.floor((onlineMs % 3600000) / 60000)}m`
+
+  // نقاط الطلب المرتفع (تقديرية)
+  const hot = useMemo(() => [0, 1, 2].map((i) => offsetPoint(city.center, Math.cos(i * 2.1) * 1.6, Math.sin(i * 2.1) * 1.6)), [city.id])
+
+  return (
+    <div className="home">
+      <MapView ref={mapRef} center={me} zoom={15} markers={markers} routes={routes} satellite={sat} padding={{ bottom: panelH }} onReady={(m) => {
+        try {
+          m.addSource('hot', { type: 'geojson', data: { type: 'FeatureCollection', features: hot.map((c) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: c } })) } })
+          m.addLayer({ id: 'hot', type: 'circle', source: 'hot', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 30, 16, 180], 'circle-color': '#E8650A', 'circle-opacity': 0.12, 'circle-blur': 0.6 } })
+        } catch {}
+      }} />
+
+      <div className="top-ctrls">
+        <button className="icon-btn" onClick={() => setDrawer(true)}><Menu size={22} /></button>
+        <button className={`online-toggle ${online ? 'on' : ''}`} onClick={toggleOnline} disabled={!!ride && ACTIVE.includes(ride.status)}>
+          <span className="lbl">{online ? tr('متصل', 'Online') : tr('غير متصل', 'Offline')}</span>
+          <span className="knob"><Zap size={20} fill="#fff" /></span>
+        </button>
+      </div>
+      <div className="float-ctrls" style={{ bottom: panelH + 16 }}>
+        <button className="icon-btn sm" onClick={() => setSat(!sat)} style={sat ? { background: 'var(--ink)', color: 'var(--bg)' } : null}><Layers size={19} /></button>
+        <button className="icon-btn sm" onClick={async () => { const p = await currentPosition(); if (p) { setPos(p.coords); mapRef.current?.flyTo(p.coords, 16) } }}><Crosshair size={19} /></button>
+      </div>
+
+      {request && !ride && <RequestCard req={request} me={me} settings={settings} onAccept={accept} onDecline={decline} key={request.id} />}
+
+      <div className="panel" ref={panelRef} key={ride ? ride.id + ride.status : 'idle'} style={{ paddingTop: 8 }}>
+        <div className="grabber" />
+        {!ride && (
+          <div className="rise">
+            {!online && (
+              <button className="go-btn" onClick={toggleOnline}>
+                <span className="go-ring"><Zap size={26} fill="#fff" /></span>
+                <span><b>{tr('ابدأ العمل الآن', 'Go online')}</b><small>{tr('اتصل لتبدأ باستقبال الطلبات', 'Start receiving requests')}</small></span>
+              </button>
+            )}
+            {online && (
+              <div className="center" style={{ marginBottom: 12 }}>
+                <div className="flex" style={{ justifyContent: 'center', fontWeight: 600 }}><span className="pulse-dot" />{tr('بانتظار الطلبات القريبة…', 'Looking for requests…')}</div>
+                <div className="tiny muted">{tr('ابقَ قريبًا من المناطق البرتقالية لطلبات أكثر', 'Stay near orange zones for more requests')}</div>
+              </div>
+            )}
+            <div className="stats-bar">
+              <div><small>{tr('الوقت على الإنترنت', 'Online time')}</small><b className="num">{hm}</b></div>
+              <div><small>{tr('الكسب اليوم', 'Earned today')}</small><b className="num">{money(todayEarn)}</b></div>
+              <div><small>{tr('الرحلات المكتملة', 'Trips')}</small><b className="num">{todayRides.length}</b></div>
+            </div>
+          </div>
+        )}
+        {ride && ACTIVE.includes(ride.status) && <ActiveRide ride={ride} me={me} approach={approach} nav={nav} uid={uid} driver={driver} settings={settings} />}
+        {ride && ride.status === 'completed' && <Collect ride={ride} uid={uid} settings={settings} />}
+      </div>
+
+      <DriverDrawer open={drawer} onClose={() => setDrawer(false)} driver={driver} nav={nav} online={online} />
+    </div>
+  )
+}
+export const rating = (d) => (d.ratingCount ? Math.round(((d.ratingSum || 0) + 5) / (d.ratingCount + 1) * 10) / 10 : d.rating || 5)
+
+// ===== بطاقة الطلب الوارد =====
+function RequestCard({ req, me, settings, onAccept, onDecline }) {
+  const T = 20
+  const [left, setLeft] = useState(T)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    haptic('heavy')
+    chime()
+    const t = setInterval(() => setLeft((l) => { if (l <= 1) { clearInterval(t); onDecline(); return 0 } return l - 1 }), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const dist = haversine(me, req.pickup.coords)
+  const { net } = driverNet(req.fare.total, settings.pricing)
+  const C = 2 * Math.PI * 26
+  return (
+    <div className="req-card pop">
+      <div className="between">
+        <div className="flex">
+          <span className="badge" style={{ background: 'var(--brand)', color: '#fff' }}><ClassCar type={req.classId} w={26} />{req.className}</span>
+          {req.payment !== 'cash' && <span className="badge green">{req.payment === 'points' ? tr('مدفوعة بالنقاط', 'Points') : tr('محفظة', 'Wallet')}</span>}
+        </div>
+        <div className="req-timer">
+          <svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" fill="none" stroke="var(--line)" strokeWidth="5" /><circle cx="30" cy="30" r="26" fill="none" stroke="var(--brand)" strokeWidth="5" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - left / T)} style={{ transition: 'stroke-dashoffset 1s linear' }} /></svg>
+          <b className="num">{left}</b>
+        </div>
+      </div>
+      <div className="req-fare"><b className="num">{money(req.fare.total)}</b><small>{tr('صافي ربحك', 'Your net')} <span className="num">{money(net)}</span></small></div>
+      <div className="grid3" style={{ margin: '10px 0' }}>
+        <div className="mini"><Navigation size={15} /><b className="num">{km(dist)}</b><small>{tr('للراكب', 'to pickup')}</small></div>
+        <div className="mini"><RouteIco size={15} /><b className="num">{km(req.route?.distanceKm || 0)}</b><small>{tr('الرحلة', 'trip')}</small></div>
+        <div className="mini"><Clock size={15} /><b className="num">{mins(req.route?.durationMin || 0)}</b><small>{tr('المدة', 'time')}</small></div>
+      </div>
+      <RouteSummary ride={req} compact />
+      <div className="flex small" style={{ marginTop: 10 }}><Avatar name={req.riderName} size={30} /><b>{req.riderName}</b><Star size={13} fill="var(--gold)" color="var(--gold)" /><span className="num">{req.riderRating || 5}</span></div>
+      {req.note && <div className="small" style={{ marginTop: 8, padding: '8px 12px', borderRadius: 12, background: 'var(--warning-bg)' }}>📝 {req.note}</div>}
+      <div className="flex mt">
+        <button className="btn btn-ghost" onClick={onDecline}><X size={20} /></button>
+        <button className="btn btn-success grow btn-lg" disabled={busy} onClick={async () => { setBusy(true); await onAccept(); setBusy(false) }}>{busy ? <span className="spinner" /> : tr('قبول الطلب', 'Accept')}</button>
+      </div>
+    </div>
+  )
+}
+
+// ===== الرحلة الجارية =====
+function ActiveRide({ ride, me, approach, nav, uid, driver, settings }) {
+  const [cancel, setCancel] = useState(false)
+  const [sosOpen, setSos] = useState(false)
+  const [wait, setWait] = useState(0)
+  useEffect(() => {
+    if (ride.status !== 'arrived') return
+    const t = setInterval(() => setWait(Math.floor((Date.now() - (ride.arrivedAt || Date.now())) / 1000)), 1000)
+    return () => clearInterval(t)
+  }, [ride.status])
+  const target = ride.status === 'ongoing' ? ride.dropoff : ride.pickup
+  const dist = haversine(me, target.coords)
+  const step = {
+    accepted: { t: tr('توجّه إلى الراكب', 'Head to pickup'), btn: tr('وصلت إلى الراكب', 'I have arrived'), next: { status: 'arrived', arrivedAt: Date.now(), phaseAt: Date.now() }, color: 'btn-primary' },
+    arrived: { t: tr('بانتظار الراكب', 'Waiting for rider'), btn: tr('بدء الرحلة', 'Start trip'), next: { status: 'ongoing', startedAt: Date.now(), phaseAt: Date.now() }, color: 'btn-success' },
+    ongoing: { t: tr('في الطريق إلى الوجهة', 'Driving to destination'), btn: tr('إنهاء الرحلة', 'Complete trip'), next: null, color: 'btn-dark' },
+  }[ride.status]
+  const advance = async () => {
+    haptic('medium')
+    if (ride.status === 'ongoing') {
+      const { net, commission } = driverNet(ride.fare.total, settings.pricing)
+      await updateRide(ride.id, { status: 'completed', completedAt: Date.now(), driverNet: net, commission, driverLoc: { coords: ride.dropoff.coords, heading: 0 } })
+      const cash = ride.payment === 'cash'
+      await updateDriver(uid, { trips: store.inc(1), earnings: store.inc(net + (ride.tip || 0)), wallet: store.inc(cash ? -commission : net) })
+    } else {
+      await updateRide(ride.id, { ...step.next, arrivedAt: ride.status === 'accepted' ? Date.now() : ride.arrivedAt, startedAt: ride.status === 'arrived' ? Date.now() : ride.startedAt, phaseAt: Date.now() })
+      if (ride.simulated && ride.status === 'accepted') toast(tr('تم إشعار الراكب بوصولك', 'Rider notified'))
+    }
+  }
+  return (
+    <div className="rise">
+      <div className="status-strip" style={ride.status === 'arrived' ? { background: 'var(--success-bg)', color: 'var(--success)' } : null}>
+        {ride.status === 'ongoing' ? <Flag size={18} /> : <MapPin size={18} />}
+        <span className="grow">{step.t}</span>
+        {ride.status === 'arrived' ? <span className="num">{Math.floor(wait / 60)}:{String(wait % 60).padStart(2, '0')}</span> : <span className="num">{km(dist)}</span>}
+      </div>
+      <div className="driver-card">
+        <Avatar name={ride.riderName} size={52} />
+        <div className="dc-main">
+          <b>{ride.riderName}</b>
+          <div className="small muted flex" style={{ gap: 4 }}><Star size={13} fill="var(--gold)" color="var(--gold)" /><span className="num">{ride.riderRating || 5}</span> • {ride.className}</div>
+        </div>
+        <div style={{ textAlign: 'end' }}>
+          <b className="num" style={{ fontSize: 20 }}>{money(ride.fare.total)}</b>
+          <div className="tiny muted">{ride.payment === 'cash' ? tr('نقدًا', 'Cash') : tr('مدفوعة', 'Prepaid')}</div>
+        </div>
+      </div>
+      <div className="place-row" style={{ marginTop: 8 }}>
+        <span className="pi" style={{ background: ride.status === 'ongoing' ? 'var(--card-2)' : 'var(--success-bg)', color: ride.status === 'ongoing' ? 'var(--ink)' : 'var(--success)' }}>{ride.status === 'ongoing' ? <Flag size={18} /> : <MapPin size={18} />}</span>
+        <span className="pt"><b>{target.title}</b><small>{target.subtitle}</small></span>
+        <a className="icon-btn sm" style={{ background: 'var(--info)', color: '#fff' }} href={mapsLink(target.coords)} target="_blank" rel="noreferrer"><Navigation size={18} /></a>
+      </div>
+      {ride.note && <div className="small" style={{ padding: '8px 12px', borderRadius: 12, background: 'var(--warning-bg)', marginTop: 6 }}>📝 {ride.note}</div>}
+      <div className="actions4">
+        <a href={`tel:${ride.riderPhone}`} style={{ color: 'inherit' }}><button style={{ width: '100%' }}><Phone size={20} />{tr('اتصال', 'Call')}</button></a>
+        <button onClick={() => nav.push('chat', { rideId: ride.id, me: 'driver' })}><MessageCircle size={20} />{tr('محادثة', 'Chat')}</button>
+        <a href={mapsLink(target.coords)} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}><button style={{ width: '100%' }}><MapIco size={20} />{tr('ملاحة', 'Navigate')}</button></a>
+        <button className="red" onClick={() => setSos(true)}><ShieldAlert size={20} />{tr('طوارئ', 'SOS')}</button>
+      </div>
+      <button className={`btn ${step.color} btn-block btn-lg mt`} onClick={advance}>{step.btn}</button>
+      {ride.status !== 'ongoing' && <button className="btn btn-block muted" style={{ '--h': '42px', marginTop: 6 }} onClick={() => setCancel(true)}>{tr('إلغاء الرحلة', 'Cancel ride')}</button>}
+      <Sheet open={cancel} onClose={() => setCancel(false)} title={tr('إلغاء الرحلة؟', 'Cancel ride?')} sub={tr('الإلغاء المتكرر يؤثر على تقييمك وأولوية الطلبات', 'Frequent cancellations affect your rating')}>
+        <div className="col" style={{ gap: 8 }}>
+          {['الراكب لم يحضر', 'الموقع بعيد جدًا', 'مشكلة في السيارة', 'سبب آخر'].map((r) => (
+            <button key={r} className="chip" style={{ height: 46 }} onClick={async () => { await cancelRide(ride.id, 'driver', r); updateDriver(uid, { cancelled: store.inc(1) }).catch(() => {}); setCancel(false); toast(tr('تم الإلغاء', 'Cancelled')) }}>{r}</button>
+          ))}
+        </div>
+      </Sheet>
+      <Sheet open={sosOpen} onClose={() => setSos(false)} title={tr('طلب مساعدة', 'Get help')}>
+        <div className="col">
+          <a className="btn btn-block" style={{ background: 'var(--danger)', color: '#fff' }} href="tel:1515">{tr('اتصال بالطوارئ 1515', 'Call 1515')}</a>
+          <button className="btn btn-ghost btn-block" onClick={async () => { await sos({ uid, rideId: ride.id, name: driver.name, phone: driver.phone, loc: me, kind: 'driver' }); setSos(false); toast(tr('تم إبلاغ فريق الأمان', 'Safety team alerted'), 'success') }}>{tr('إبلاغ فريق وصلني', 'Alert Wasalni')}</button>
+        </div>
+      </Sheet>
+    </div>
+  )
+}
+
+// ===== التحصيل والتقييم =====
+function Collect({ ride, uid, settings }) {
+  const [stars, setStars] = useState(5)
+  const cash = ride.payment === 'cash'
+  const { net, commission } = driverNet(ride.fare.total, settings.pricing)
+  const done = async () => {
+    await updateRide(ride.id, { driverClosed: true, ratingByDriver: stars })
+    if (!ride.simulated && ride.riderId) store.set(`users/${ride.riderId}`, { ratingSum: store.inc(stars), ratingCount: store.inc(1) }, true).catch(() => {})
+    toast(tr('أحسنت! رحلة موفقة 💪', 'Great job! 💪'), 'success')
+  }
+  return (
+    <div className="rise center">
+      <div className="pop" style={{ width: 70, height: 70, borderRadius: 24, margin: '0 auto 10px', display: 'grid', placeItems: 'center', background: cash ? 'var(--success-bg)' : 'var(--info-bg)', color: cash ? 'var(--success)' : 'var(--info)' }}>{cash ? <Banknote size={36} /> : <Wallet size={36} />}</div>
+      <div className="small muted">{cash ? tr('استلم من الراكب نقدًا', 'Collect cash from rider') : tr('الرحلة مدفوعة إلكترونيًا', 'Trip is prepaid')}</div>
+      <div style={{ fontSize: 40, fontWeight: 800 }} className="num brand-text">{money(ride.fare.total + (ride.tip || 0))}</div>
+      <div className="grid3 card" style={{ margin: '12px 0', boxShadow: 'none', background: 'var(--card-2)' }}>
+        <div className="stat"><b className="num">{money(net)}</b><small>{tr('صافي ربحك', 'Net')}</small></div>
+        <div className="stat"><b className="num">{money(commission)}</b><small>{tr('عمولة', 'Commission')} {settings.pricing.commission}%</small></div>
+        <div className="stat"><b className="num">{money(ride.tip || 0)}</b><small>{tr('إكرامية', 'Tip')}</small></div>
+      </div>
+      <div className="small muted">{tr(`كيف كان ${ride.riderName}؟`, `Rate ${ride.riderName}`)}</div>
+      <div style={{ margin: '8px 0 14px' }}><Stars value={stars} size={34} onChange={setStars} /></div>
+      <button className="btn btn-primary btn-block btn-lg" onClick={done}><Check size={20} />{cash ? tr('تم استلام المبلغ', 'Cash collected') : tr('تم', 'Done')}</button>
+    </div>
+  )
+}
+
+function DriverDrawer({ open, onClose, driver, nav, online }) {
+  const go = (p) => { onClose(); setTimeout(() => nav.push(p), 60) }
+  return (
+    <Drawer open={open} onClose={onClose}
+      head={
+        <button className="flex" style={{ position: 'relative', zIndex: 1, color: '#fff', textAlign: 'start', width: '100%' }} onClick={() => go('profile')}>
+          <Avatar name={driver.name} src={driver.photo} size={62} style={{ border: '3px solid rgba(255,255,255,.5)' }} />
+          <div className="grow">
+            <div style={{ fontSize: 18, fontWeight: 600 }}>{driver.name}</div>
+            <div className="small" style={{ opacity: 0.9 }}>{tr('رصيد المحفظة:', 'Wallet:')} <span className="num">{money(driver.wallet || 0)}</span></div>
+            <div className="flex tiny" style={{ marginTop: 6, gap: 6 }}>
+              <span className="badge" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}><Star size={11} fill="#fff" /><span className="num">{rating(driver)}</span></span>
+              <span className="badge" style={{ background: online ? 'var(--success)' : 'rgba(255,255,255,.2)', color: '#fff' }}>{online ? tr('متصل', 'Online') : tr('غير متصل', 'Offline')}</span>
+            </div>
+          </div>
+        </button>
+      }
+      foot={<div className="tiny muted center" style={{ padding: '10px 0 calc(var(--safe-b) + 12px)' }}>Wasalni Captain v1.0</div>}
+    >
+      <DrawerItem icon={<MapIco size={19} />} color="#14b8a6" label={tr('الرحلات', 'Trips')} onClick={() => go('trips')} />
+      <DrawerItem icon={<CalendarClock size={19} />} color="#475569" label={tr('رحلات بحجز مسبق أو مجدولة', 'Scheduled rides')} onClick={() => go('scheduled')} />
+      <DrawerItem icon={<Wallet size={19} />} color="#a16207" label={tr('المحفظة', 'Wallet')} onClick={() => go('wallet')} />
+      <DrawerItem icon={<BadgeDollarSign size={19} />} color="#16a34a" label={tr('الأرباح', 'Earnings')} onClick={() => go('earnings')} />
+      <DrawerItem icon={<Gift size={19} />} color="#ef4444" label={tr('دعوة السائقين', 'Invite drivers')} onClick={() => go('invite')} />
+      <DrawerItem icon={<Users size={19} />} color="#475569" label={tr('الإحالات الخاصة بي', 'My referrals')} onClick={() => go('referrals')} />
+      <DrawerItem icon={<Bell size={19} />} color="#a855f7" label={tr('الإشعارات', 'Notifications')} onClick={() => go('notifications')} />
+      <DrawerItem icon={<Phone size={19} />} color="#22c55e" label={tr('اطلب المساعدة', 'Get help')} onClick={() => go('support')} />
+      <DrawerItem icon={<Info size={19} />} color="#3b82f6" label={tr('الدعم', 'Support')} onClick={() => go('support')} />
+    </Drawer>
+  )
+}
+
+// نغمة تنبيه للطلب الجديد
+function chime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    ;[880, 1175, 1568].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain()
+      o.type = 'sine'; o.frequency.value = f
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.16)
+      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + i * 0.16 + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.16 + 0.4)
+      o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + i * 0.16); o.stop(ctx.currentTime + i * 0.16 + 0.45)
+    })
+  } catch {}
+}
