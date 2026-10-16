@@ -1,0 +1,223 @@
+name: Wasalni Build & Deploy
+run-name: "build ${{ github.ref_name }} — ${{ github.event.head_commit.message || 'manual' }}"
+
+# كل push: بناء الويب (هبوط + زبون + سائق + لوحة) ← بناء APK للزبون والسائق ← نشر على surge ← إرسال كل شيء لتلجرام
+on:
+  push:
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+
+concurrency:
+  group: wasalni-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+  VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+  VITE_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+  VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+  VITE_FIREBASE_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
+  VITE_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      domain: ${{ steps.d.outputs.domain }}
+    steps:
+      - id: d
+        env:
+          SURGE_DOMAIN: ${{ secrets.SURGE_DOMAIN }}
+        run: |
+          d="${SURGE_DOMAIN:-wasalni-${GITHUB_REPOSITORY_OWNER}.surge.sh}"
+          d="$(echo "$d" | tr '[:upper:]' '[:lower:]' | sed -e 's#^https\?://##' -e 's#/$##')"
+          echo "domain=$d" >> "$GITHUB_OUTPUT"
+          echo "🌐 $d"
+
+  web:
+    needs: meta
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: بناء التطبيقات الأربعة
+        env:
+          VITE_SITE_URL: https://${{ needs.meta.outputs.domain }}
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with: { name: site, path: dist/site, retention-days: 7 }
+
+  android:
+    needs: meta
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: rider
+            id: com.wasalni.app
+            name: وصلني
+            file: wasalni.apk
+            color: '#E8650A'
+          - app: driver
+            id: com.wasalni.captain
+            name: وصلني كابتن
+            file: wasalni-captain.apk
+            color: '#18120E'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: gradle }
+      - run: npm ci --no-audit --no-fund
+      - name: بناء واجهة ${{ matrix.app }}
+        env:
+          APP: ${{ matrix.app }}
+          VITE_SITE_URL: https://${{ needs.meta.outputs.domain }}
+        run: npx vite build
+      - name: مشروع أندرويد (Capacitor)
+        run: |
+          cat > capacitor.config.json <<JSON
+          {
+            "appId": "${{ matrix.id }}",
+            "appName": "${{ matrix.name }}",
+            "webDir": "dist/${{ matrix.app }}",
+            "server": { "androidScheme": "https" },
+            "android": { "allowMixedContent": false },
+            "plugins": {
+              "SplashScreen": { "launchShowDuration": 1500, "launchAutoHide": true, "backgroundColor": "${{ matrix.color }}", "androidScaleType": "CENTER_CROP", "showSpinner": false },
+              "StatusBar": { "overlaysWebView": false }
+            }
+          }
+          JSON
+          rm -rf android
+          npx cap add android
+          npx cap sync android
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n\n    <application#' $M
+          node scripts/icons.mjs android ${{ matrix.app }} android/app/src/main/res
+          # رقم الإصدار يتزايد مع كل بناء
+          G=android/app/build.gradle
+          sed -i "s/versionCode [0-9]*/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" $G
+          grep -E "versionCode|versionName|applicationId" $G
+      - name: مفتاح التوقيع
+        id: key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          mkdir -p ~/.wasalni
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > ~/.wasalni/release.p12
+            echo "pass=$KS_PASS" >> "$GITHUB_OUTPUT"
+            A=$(keytool -list -storetype PKCS12 -keystore ~/.wasalni/release.p12 -storepass "$KS_PASS" | grep -i PrivateKeyEntry | head -1 | cut -d, -f1); echo "alias=${A:-wasalni}" >> "$GITHUB_OUTPUT"
+            echo "✓ مفتاح التوقيع من الأسرار"
+          else
+            echo "pass=" >> "$GITHUB_OUTPUT"
+            echo "⚠ لا يوجد ANDROID_KEYSTORE_B64 — توقيع مؤقت (شغّل أمر الإعداد لتثبيت مفتاح دائم)"
+          fi
+      - uses: actions/cache@v4
+        if: steps.key.outputs.pass == ''
+        with: { path: ~/.wasalni/fallback.p12, key: wasalni-fallback-keystore-v1 }
+      - name: بناء APK
+        working-directory: android
+        env:
+          PASS: ${{ steps.key.outputs.pass }}
+          ALIAS: ${{ steps.key.outputs.alias }}
+        run: |
+          chmod +x gradlew
+          if [ -z "$PASS" ]; then
+            PASS=wasalni-fallback ALIAS=wasalni
+            [ -f ~/.wasalni/fallback.p12 ] || keytool -genkeypair -storetype PKCS12 -keystore ~/.wasalni/fallback.p12 -storepass $PASS -keypass $PASS -alias $ALIAS -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Wasalni, O=Wasalni, C=LY"
+            KS=~/.wasalni/fallback.p12
+          else
+            KS=~/.wasalni/release.p12
+          fi
+          ./gradlew assembleRelease --no-daemon -q \
+            -Pandroid.injected.signing.store.file=$KS \
+            -Pandroid.injected.signing.store.password=$PASS \
+            -Pandroid.injected.signing.key.alias=$ALIAS \
+            -Pandroid.injected.signing.key.password=$PASS
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/*.apk ../out/${{ matrix.file }}
+          ls -la ../out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ matrix.app }}
+          path: out/${{ matrix.file }}
+          retention-days: 14
+
+  deploy:
+    needs: [meta, web, android]
+    if: always() && needs.web.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DOMAIN: ${{ needs.meta.outputs.domain }}
+      SURGE_TOKEN: ${{ secrets.SURGE_TOKEN }}
+      SURGE_LOGIN: ${{ secrets.SURGE_LOGIN }}
+      TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+      FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: site, path: site }
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with: { pattern: apk-*, path: site/downloads, merge-multiple: true }
+      - name: النشر على surge.sh
+        id: surge
+        run: |
+          ls -la site site/downloads || true
+          if [ -z "$SURGE_TOKEN" ]; then echo "⚠ SURGE_TOKEN غير موجود — شغّل أمر الإعداد على السيرفر"; echo "ok=0" >> "$GITHUB_OUTPUT"; exit 0; fi
+          npx --yes surge@0.44.6 ./site "$DOMAIN" --token "$SURGE_TOKEN" && echo "ok=1" >> "$GITHUB_OUTPUT"
+      - name: قواعد Firestore
+        if: env.FIREBASE_TOKEN != '' && env.FIREBASE_PROJECT_ID != ''
+        continue-on-error: true
+        working-directory: firebase
+        run: npx --yes firebase-tools@13 deploy --only firestore:rules --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+      - name: إرسال لتلجرام
+        if: env.TG_TOKEN != '' && env.TG_CHAT != ''
+        run: |
+          U="https://$DOMAIN"
+          MSG=$(git log -1 --pretty=%s | head -c 300)
+          MODE=$([ -n "${{ secrets.FIREBASE_API_KEY }}" ] && echo "Firebase مباشر ✅" || echo "وضع العرض المحلي ⚠️")
+          ST=$([ "${{ steps.surge.outputs.ok }}" = "1" ] && echo "✅ تم النشر" || echo "⚠️ لم يُنشر (SURGE_TOKEN)")
+          TEXT="🚗 <b>وصلني — بناء #${{ github.run_number }}</b>
+          ${ST} • ${MODE}
+          📝 ${MSG}
+
+          🌐 صفحة الهبوط: ${U}
+          📱 تطبيق الزبون (آيفون/ويب): ${U}/app/
+          🧑‍✈️ تطبيق السائق (ويب): ${U}/driver/
+          🛠 لوحة التحكم: ${U}/admin/
+          ⬇️ APK الزبون: ${U}/downloads/wasalni.apk
+          ⬇️ APK السائق: ${U}/downloads/wasalni-captain.apk
+
+          🔧 ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          TEXT=$(echo "$TEXT" | sed 's/^ *//')
+          curl -sS -o /dev/null -w "message %{http_code}\n" "https://api.telegram.org/bot$TG_TOKEN/sendMessage" \
+            --data-urlencode "chat_id=$TG_CHAT" --data-urlencode "text=$TEXT" -d parse_mode=HTML -d disable_web_page_preview=true
+          for f in site/downloads/wasalni.apk site/downloads/wasalni-captain.apk; do
+            [ -f "$f" ] || continue
+            N=$([ "$(basename $f)" = "wasalni.apk" ] && echo "📱 تطبيق الزبون" || echo "🧑‍✈️ تطبيق السائق")
+            curl -sS -o /dev/null -w "$(basename $f) %{http_code}\n" "https://api.telegram.org/bot$TG_TOKEN/sendDocument" \
+              -F "chat_id=$TG_CHAT" -F "document=@$f" -F "caption=$N — v1.0.${{ github.run_number }}"
+          done
+      - name: الملخص
+        run: |
+          echo "### وصلني 🚗" >> $GITHUB_STEP_SUMMARY
+          echo "- الموقع: https://$DOMAIN" >> $GITHUB_STEP_SUMMARY
+          echo "- لوحة التحكم: https://$DOMAIN/admin/" >> $GITHUB_STEP_SUMMARY
+          echo "- APK: https://$DOMAIN/downloads/wasalni.apk • https://$DOMAIN/downloads/wasalni-captain.apk" >> $GITHUB_STEP_SUMMARY

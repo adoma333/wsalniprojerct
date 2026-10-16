@@ -16,8 +16,10 @@ export function boot() {
     if (!Capacitor.isNativePlatform()) return
     document.documentElement.classList.add('native')
     const { StatusBar, Style } = await import('@capacitor/status-bar')
-    StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {})
-    StatusBar.setStyle({ style: document.documentElement.dataset.theme === 'dark' ? Style.Dark : Style.Light }).catch(() => {})
+    const dark = document.documentElement.dataset.theme === 'dark'
+    StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {})
+    StatusBar.setBackgroundColor({ color: dark ? '#0D0B0A' : '#F6F3F0' }).catch(() => {})
+    StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {})
     const { SplashScreen } = await import('@capacitor/splash-screen')
     SplashScreen.hide().catch(() => {})
   }).catch(() => {})

@@ -41,7 +41,7 @@ if (mode === 'android') {
   mkdirSync(`${res}/values`, { recursive: true })
   writeFileSync(`${res}/values/ic_launcher_background.xml`, `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">${THEMES[app].bg[1]}</color>\n</resources>\n`)
   // شاشة البداية
-  const sizes = { 'drawable': [480, 800], 'drawable-port-hdpi': [480, 800], 'drawable-port-xhdpi': [720, 1280], 'drawable-port-xxhdpi': [960, 1600], 'drawable-port-xxxhdpi': [1280, 1920], 'drawable-land-hdpi': [800, 480], 'drawable-land-xhdpi': [1280, 720], 'drawable-land-xxhdpi': [1600, 960], 'drawable-land-xxxhdpi': [1920, 1280] }
+  const sizes = { 'drawable': [480, 800], 'drawable-port-mdpi': [320, 480], 'drawable-land-mdpi': [480, 320], 'drawable-port-hdpi': [480, 800], 'drawable-port-xhdpi': [720, 1280], 'drawable-port-xxhdpi': [960, 1600], 'drawable-port-xxxhdpi': [1280, 1920], 'drawable-land-hdpi': [800, 480], 'drawable-land-xhdpi': [1280, 720], 'drawable-land-xxhdpi': [1600, 960], 'drawable-land-xxxhdpi': [1920, 1280] }
   const logo = readFileSync('public/brand/logo.svg', 'utf8')
   const lvb = logo.match(/viewBox="([^"]+)"/)[1].split(' ').map(Number)
   const linner = logo.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')

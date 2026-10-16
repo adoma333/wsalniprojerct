@@ -1,0 +1,95 @@
+rules_version = '2';
+// قواعد أمان وصلني. المدير = حساب البريد contwais@gmail.com (يُنشأ عند أول فتح للوحة التحكم).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.email == 'contwais@gmail.com'; }
+    function me(uid) { return signedIn() && request.auth.uid == uid; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function onlyChanges(keys) { return changed().hasOnly(keys); }
+
+    // إعدادات المنصة: قراءة للجميع، تعديل للمدير
+    match /settings/{id} { allow read: if true; allow write: if isAdmin(); }
+    // حالة تهيئة كلمة سر المدير
+    match /meta/{id} { allow read: if true; allow write: if isAdmin(); }
+
+    // الزبائن: صاحب الحساب يعدل بياناته، لكن لا يزيد رصيد المحفظة أو النقاط بنفسه
+    match /users/{uid} {
+      allow read: if me(uid) || isAdmin();
+      allow create: if me(uid) && request.resource.data.points == 0 && request.resource.data.wallet == 0;
+      allow update: if isAdmin()
+        || (me(uid) && !changed().hasAny(['wallet', 'points', 'earnedTotal', 'blocked']))
+        // مكافأة ريل: زيادة النقاط بقيمة المكافأة مع إنشاء سجل مشاهدة جديد في نفس العملية
+        || (me(uid) && onlyChanges(['points', 'earnedTotal', 'viewsToday', 'viewsDay', 'lastView', 'updatedAt'])
+            && request.resource.data.points - resource.data.points <= 50
+            && request.resource.data.points > resource.data.points
+            && existsAfter(/databases/$(database)/documents/users/$(uid)/views/$(request.resource.data.lastView))
+            && !exists(/databases/$(database)/documents/users/$(uid)/views/$(request.resource.data.lastView)))
+        // شحن بقسيمة غير مستخدمة
+        || (me(uid) && onlyChanges(['wallet', 'lastVoucher', 'updatedAt'])
+            && request.resource.data.wallet - resource.data.wallet == get(/databases/$(database)/documents/vouchers/$(request.resource.data.lastVoucher)).data.amount
+            && !get(/databases/$(database)/documents/vouchers/$(request.resource.data.lastVoucher)).data.used)
+        // الدفع: إنقاص الرصيد فقط
+        || (me(uid) && onlyChanges(['wallet', 'points', 'trips', 'updatedAt'])
+            && request.resource.data.get('wallet', 0) <= resource.data.get('wallet', 0)
+            && request.resource.data.get('points', 0) <= resource.data.get('points', 0))
+        // تقييم من السائق
+        || (signedIn() && onlyChanges(['ratingSum', 'ratingCount']));
+      allow delete: if isAdmin();
+      match /views/{id} { allow read: if me(uid) || isAdmin(); allow create: if me(uid); allow update, delete: if isAdmin(); }
+      match /likes/{id} { allow read, write: if me(uid) || isAdmin(); }
+      match /tx/{id} { allow read: if me(uid) || isAdmin(); allow create: if me(uid) || isAdmin(); allow update, delete: if isAdmin(); }
+    }
+
+    // السائقون: الموقع والحالة مرئية لتطبيق الزبون
+    match /drivers/{uid} {
+      allow read: if signedIn();
+      allow create: if me(uid) && request.resource.data.status in ['pending', 'approved'];
+      allow update: if isAdmin()
+        || (me(uid) && !changed().hasAny(['status', 'rejectReason', 'approvedAt']))
+        || (signedIn() && onlyChanges(['ratingSum', 'ratingCount']));
+      allow delete: if isAdmin();
+    }
+
+    // الرحلات
+    match /rides/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (request.resource.data.riderId == request.auth.uid || request.resource.data.driverId == request.auth.uid);
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.riderId == request.auth.uid)
+        || (signedIn() && resource.data.driverId == request.auth.uid)
+        // قبول طلب أو حجز رحلة مجدولة أو رفضها
+        || (signedIn() && resource.data.status in ['searching', 'scheduled'] && (request.resource.data.driverId == request.auth.uid || onlyChanges(['declinedBy'])));
+      allow delete: if isAdmin();
+      match /messages/{m} { allow read, create: if signedIn(); allow update, delete: if isAdmin(); }
+    }
+
+    // الريلز وإحصاءاتها
+    match /reels/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /reelStats/{id} {
+      allow read: if true;
+      allow create, update: if signedIn();
+      allow delete: if isAdmin();
+      match /comments/{c} { allow read: if true; allow create: if signedIn() && request.resource.data.uid == request.auth.uid; allow update, delete: if isAdmin(); }
+    }
+
+    match /promos/{code} {
+      allow read: if signedIn();
+      allow update: if isAdmin() || (signedIn() && onlyChanges(['used']));
+      allow create, delete: if isAdmin();
+    }
+    match /vouchers/{code} {
+      allow read: if signedIn();
+      allow update: if isAdmin() || (signedIn() && !resource.data.used && onlyChanges(['used', 'usedBy', 'usedAt']) && request.resource.data.usedBy == request.auth.uid);
+      allow create, delete: if isAdmin();
+    }
+    match /notifications/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /tickets/{id} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+    match /sos/{id} { allow create: if signedIn(); allow read, update, delete: if isAdmin(); }
+    match /referrals/{id} { allow create: if signedIn(); allow read, update, delete: if isAdmin(); }
+  }
+}
