@@ -382,7 +382,7 @@ button.row:active { background: var(--card-2); }
 @keyframes ring { from { width: 80px; height: 80px; opacity: 1; } to { width: 140vmax; height: 140vmax; opacity: 0; } }
 
 /* ===== الخريطة ===== */
-.map { position: absolute; inset: 0; background: var(--bg-2); }
+.map, .map.maplibregl-map { position: absolute; inset: 0; width: 100%; height: 100%; background: var(--bg-2); }
 .maplibregl-ctrl-attrib { font-size: 9px !important; opacity: 0.6; }
 .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { bottom: 0; }
 .car-marker { width: 44px; height: 44px; transition: transform 1.3s linear; will-change: transform; }

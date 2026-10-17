@@ -24,7 +24,7 @@ export async function registerRider(uid, { name, phone, email, city, referral })
   const exists = await store.get(`users/${uid}`)
   const code = 'W' + shortId(5)
   const data = {
-    name, phone, email: email || '', city: city || 'tripoli', role: 'rider', createdAt: Date.now(), updatedAt: Date.now(),
+    name, phone, email: email || '', city: city || 'sba', role: 'rider', createdAt: Date.now(), updatedAt: Date.now(),
     points: 0, wallet: 0, earnedTotal: 0, trips: 0, cancelled: 0, referrals: 0, rating: 5, ratingCount: 0,
     referralCode: exists?.referralCode || code, referredBy: referral || '', savedPlaces: exists?.savedPlaces || {}, blocked: false,
   }

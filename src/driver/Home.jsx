@@ -15,7 +15,7 @@ import { quote, driverNet } from '@/core/pricing.js'
 import { watchSearching, watchDriverRides, acceptRide, declineRide, updateRide, updateDriver, store, cancelRide, sos } from '@/core/api.js'
 
 const ACTIVE = ['accepted', 'arrived', 'ongoing']
-const RIDER_NAMES = ['سارة', 'محمد', 'هدى', 'علي', 'مريم', 'يوسف', 'نور', 'عمر', 'ليلى', 'خالد']
+const RIDER_NAMES = ['أمينة', 'محمد', 'سارة', 'ياسين', 'مريم', 'رياض', 'إيمان', 'وليد', 'خديجة', 'سفيان']
 const CLASS_OK = { eco: ['eco', 'moto'], comfort: ['eco', 'comfort', 'moto'], family: ['eco', 'comfort', 'family', 'moto'], vip: ['eco', 'comfort', 'vip'], moto: ['moto'] }
 
 export default function Home() {
@@ -90,9 +90,9 @@ export default function Home() {
       const [r, p1, p2] = await Promise.all([route([pu, dof]), reverse(pu), reverse(dof)])
       const cls = settings.pricing.classes.find((c) => c.id === (CLASS_OK[myClass] || ['eco'])[0]) || settings.pricing.classes[0]
       setSimReq({
-        id: 'sim-' + Date.now(), simulated: true, createdAt: Date.now(), riderName: pick(RIDER_NAMES), riderRating: +(4.5 + Math.random() * 0.5).toFixed(1), riderPhone: '+21891' + Math.floor(1e6 + Math.random() * 9e6),
+        id: 'sim-' + Date.now(), simulated: true, createdAt: Date.now(), riderName: pick(RIDER_NAMES), riderRating: +(4.5 + Math.random() * 0.5).toFixed(1), riderPhone: '+2135' + Math.floor(1e7 + Math.random() * 9e7),
         pickup: { ...p1, coords: pu }, dropoff: { ...p2, coords: dof }, stops: [], route: { coords: r.coords, distanceKm: r.distanceKm, durationMin: r.durationMin },
-        classId: cls.id, className: cls.ar, fare: quote(cls, r, settings.pricing), payment: Math.random() > 0.8 ? 'points' : 'cash', note: Math.random() > 0.7 ? 'أنا أمام المدخل الرئيسي' : '',
+        classId: cls.id, className: cls.ar, fare: quote(cls, r, settings.pricing), payment: Math.random() > 0.8 ? 'points' : 'cash', note: Math.random() > 0.7 ? 'راني قدام الباب الكبير' : '',
       })
     }, 9000 + Math.random() * 14000)
     return () => clearTimeout(t)
@@ -155,11 +155,11 @@ export default function Home() {
       const day = new Date().toISOString().slice(0, 10)
       await updateDriver(uid, { online: false, onlineSince: null, onlineMs: driver.onlineDay === day ? (driver.onlineMs || 0) + add : add, onlineDay: day })
       setSimReq(null)
-      toast(tr('أنت الآن غير متصل', 'You are offline'))
+      toast(tr('راك ماشي متصل دروك', 'You are offline'))
     } else {
       const p = pos || (await currentPosition())?.coords || city.center
       await updateDriver(uid, { online: true, onlineSince: Date.now(), loc: { coords: p, heading }, lastSeen: Date.now() })
-      toast(tr('أنت متصل الآن، بانتظار الطلبات 🚀', 'You are online 🚀'), 'success')
+      toast(tr('راك متصل دروك، استنى الطلبات 🚀', 'You are online 🚀'), 'success')
     }
   }
 
@@ -174,10 +174,10 @@ export default function Home() {
       setSimReq(null)
     } else {
       const ok = await acceptRide(req.id, d)
-      if (!ok) return toast(tr('سبقك سائق آخر لهذا الطلب', 'Another driver took it'), 'error')
+      if (!ok) return toast(tr('شيفور آخر سبقك للطلب', 'Another driver took it'), 'error')
       updateRide(req.id, { driverLoc: { coords: pos || me, heading } }).catch(() => {})
     }
-    toast(tr('تم قبول الطلب، توجّه للراكب', 'Accepted — head to pickup'), 'success')
+    toast(tr('الطلب تقبل، روح للزبون', 'Accepted — head to pickup'), 'success')
   }
   const decline = async () => {
     if (request.simulated) setSimReq(null)
@@ -222,7 +222,7 @@ export default function Home() {
       <div className="top-ctrls">
         <button className="icon-btn" onClick={() => setDrawer(true)}><Menu size={22} /></button>
         <button className={`online-toggle ${online ? 'on' : ''}`} onClick={toggleOnline} disabled={!!ride && ACTIVE.includes(ride.status)}>
-          <span className="lbl">{online ? tr('متصل', 'Online') : tr('غير متصل', 'Offline')}</span>
+          <span className="lbl">{online ? tr('متصل', 'Online') : tr('ماشي متصل', 'Offline')}</span>
           <span className="knob"><Zap size={20} fill="#fff" /></span>
         </button>
       </div>
@@ -240,19 +240,19 @@ export default function Home() {
             {!online && (
               <button className="go-btn" onClick={toggleOnline}>
                 <span className="go-ring"><Zap size={26} fill="#fff" /></span>
-                <span><b>{tr('ابدأ العمل الآن', 'Go online')}</b><small>{tr('اتصل لتبدأ باستقبال الطلبات', 'Start receiving requests')}</small></span>
+                <span><b>{tr('ابدا الخدمة دروك', 'Go online')}</b><small>{tr('تكونيكتا باش تبدا تستقبل الطلبات', 'Start receiving requests')}</small></span>
               </button>
             )}
             {online && (
               <div className="center" style={{ marginBottom: 12 }}>
-                <div className="flex" style={{ justifyContent: 'center', fontWeight: 600 }}><span className="pulse-dot" />{tr('بانتظار الطلبات القريبة…', 'Looking for requests…')}</div>
-                <div className="tiny muted">{tr('ابقَ قريبًا من المناطق البرتقالية لطلبات أكثر', 'Stay near orange zones for more requests')}</div>
+                <div className="flex" style={{ justifyContent: 'center', fontWeight: 600 }}><span className="pulse-dot" />{tr('نستناو الطلبات القريبة…', 'Looking for requests…')}</div>
+                <div className="tiny muted">{tr('ابقى قريب من البلايص البرتقاليين باش تجيك طلبات أكثر', 'Stay near orange zones for more requests')}</div>
               </div>
             )}
             <div className="stats-bar">
-              <div><small>{tr('الوقت على الإنترنت', 'Online time')}</small><b className="num">{hm}</b></div>
-              <div><small>{tr('الكسب اليوم', 'Earned today')}</small><b className="num">{money(todayEarn)}</b></div>
-              <div><small>{tr('الرحلات المكتملة', 'Trips')}</small><b className="num">{todayRides.length}</b></div>
+              <div><small>{tr('الوقت متصل', 'Online time')}</small><b className="num">{hm}</b></div>
+              <div><small>{tr('الدخل اليوم', 'Earned today')}</small><b className="num">{money(todayEarn)}</b></div>
+              <div><small>{tr('الكورسات الكاملين', 'Trips')}</small><b className="num">{todayRides.length}</b></div>
             </div>
           </div>
         )}
@@ -292,10 +292,10 @@ function RequestCard({ req, me, settings, onAccept, onDecline }) {
           <b className="num">{left}</b>
         </div>
       </div>
-      <div className="req-fare"><b className="num">{money(req.fare.total)}</b><small>{tr('صافي ربحك', 'Your net')} <span className="num">{money(net)}</span></small></div>
+      <div className="req-fare"><b className="num">{money(req.fare.total)}</b><small>{tr('الصافي تاعك', 'Your net')} <span className="num">{money(net)}</span></small></div>
       <div className="grid3" style={{ margin: '10px 0' }}>
-        <div className="mini"><Navigation size={15} /><b className="num">{km(dist)}</b><small>{tr('للراكب', 'to pickup')}</small></div>
-        <div className="mini"><RouteIco size={15} /><b className="num">{km(req.route?.distanceKm || 0)}</b><small>{tr('الرحلة', 'trip')}</small></div>
+        <div className="mini"><Navigation size={15} /><b className="num">{km(dist)}</b><small>{tr('للزبون', 'to pickup')}</small></div>
+        <div className="mini"><RouteIco size={15} /><b className="num">{km(req.route?.distanceKm || 0)}</b><small>{tr('الكورسة', 'trip')}</small></div>
         <div className="mini"><Clock size={15} /><b className="num">{mins(req.route?.durationMin || 0)}</b><small>{tr('المدة', 'time')}</small></div>
       </div>
       <RouteSummary ride={req} compact />
@@ -303,7 +303,7 @@ function RequestCard({ req, me, settings, onAccept, onDecline }) {
       {req.note && <div className="small" style={{ marginTop: 8, padding: '8px 12px', borderRadius: 12, background: 'var(--warning-bg)' }}>📝 {req.note}</div>}
       <div className="flex mt">
         <button className="btn btn-ghost" onClick={onDecline}><X size={20} /></button>
-        <button className="btn btn-success grow btn-lg" disabled={busy} onClick={async () => { setBusy(true); await onAccept(); setBusy(false) }}>{busy ? <span className="spinner" /> : tr('قبول الطلب', 'Accept')}</button>
+        <button className="btn btn-success grow btn-lg" disabled={busy} onClick={async () => { setBusy(true); await onAccept(); setBusy(false) }}>{busy ? <span className="spinner" /> : tr('اقبل الطلب', 'Accept')}</button>
       </div>
     </div>
   )
@@ -322,9 +322,9 @@ function ActiveRide({ ride, me, approach, nav, uid, driver, settings }) {
   const target = ride.status === 'ongoing' ? ride.dropoff : ride.pickup
   const dist = haversine(me, target.coords)
   const step = {
-    accepted: { t: tr('توجّه إلى الراكب', 'Head to pickup'), btn: tr('وصلت إلى الراكب', 'I have arrived'), next: { status: 'arrived', arrivedAt: Date.now(), phaseAt: Date.now() }, color: 'btn-primary' },
-    arrived: { t: tr('بانتظار الراكب', 'Waiting for rider'), btn: tr('بدء الرحلة', 'Start trip'), next: { status: 'ongoing', startedAt: Date.now(), phaseAt: Date.now() }, color: 'btn-success' },
-    ongoing: { t: tr('في الطريق إلى الوجهة', 'Driving to destination'), btn: tr('إنهاء الرحلة', 'Complete trip'), next: null, color: 'btn-dark' },
+    accepted: { t: tr('روح للزبون', 'Head to pickup'), btn: tr('وصلت للزبون', 'I have arrived'), next: { status: 'arrived', arrivedAt: Date.now(), phaseAt: Date.now() }, color: 'btn-primary' },
+    arrived: { t: tr('نستنى الزبون', 'Waiting for rider'), btn: tr('ابدا الكورسة', 'Start trip'), next: { status: 'ongoing', startedAt: Date.now(), phaseAt: Date.now() }, color: 'btn-success' },
+    ongoing: { t: tr('رايح للبلاصة', 'Driving to destination'), btn: tr('كمّل الكورسة', 'Complete trip'), next: null, color: 'btn-dark' },
   }[ride.status]
   const advance = async () => {
     haptic('medium')
@@ -335,7 +335,7 @@ function ActiveRide({ ride, me, approach, nav, uid, driver, settings }) {
       await updateDriver(uid, { trips: store.inc(1), earnings: store.inc(net + (ride.tip || 0)), wallet: store.inc(cash ? -commission : net) })
     } else {
       await updateRide(ride.id, { ...step.next, arrivedAt: ride.status === 'accepted' ? Date.now() : ride.arrivedAt, startedAt: ride.status === 'arrived' ? Date.now() : ride.startedAt, phaseAt: Date.now() })
-      if (ride.simulated && ride.status === 'accepted') toast(tr('تم إشعار الراكب بوصولك', 'Rider notified'))
+      if (ride.simulated && ride.status === 'accepted') toast(tr('الزبون عرف بلي وصلت', 'Rider notified'))
     }
   }
   return (
@@ -353,7 +353,7 @@ function ActiveRide({ ride, me, approach, nav, uid, driver, settings }) {
         </div>
         <div style={{ textAlign: 'end' }}>
           <b className="num" style={{ fontSize: 20 }}>{money(ride.fare.total)}</b>
-          <div className="tiny muted">{ride.payment === 'cash' ? tr('نقدًا', 'Cash') : tr('مدفوعة', 'Prepaid')}</div>
+          <div className="tiny muted">{ride.payment === 'cash' ? tr('كاش', 'Cash') : tr('مدفوعة', 'Prepaid')}</div>
         </div>
       </div>
       <div className="place-row" style={{ marginTop: 8 }}>
@@ -363,24 +363,24 @@ function ActiveRide({ ride, me, approach, nav, uid, driver, settings }) {
       </div>
       {ride.note && <div className="small" style={{ padding: '8px 12px', borderRadius: 12, background: 'var(--warning-bg)', marginTop: 6 }}>📝 {ride.note}</div>}
       <div className="actions4">
-        <a href={`tel:${ride.riderPhone}`} style={{ color: 'inherit' }}><button style={{ width: '100%' }}><Phone size={20} />{tr('اتصال', 'Call')}</button></a>
-        <button onClick={() => nav.push('chat', { rideId: ride.id, me: 'driver' })}><MessageCircle size={20} />{tr('محادثة', 'Chat')}</button>
-        <a href={mapsLink(target.coords)} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}><button style={{ width: '100%' }}><MapIco size={20} />{tr('ملاحة', 'Navigate')}</button></a>
+        <a href={`tel:${ride.riderPhone}`} style={{ color: 'inherit' }}><button style={{ width: '100%' }}><Phone size={20} />{tr('عيّط', 'Call')}</button></a>
+        <button onClick={() => nav.push('chat', { rideId: ride.id, me: 'driver' })}><MessageCircle size={20} />{tr('دردشة', 'Chat')}</button>
+        <a href={mapsLink(target.coords)} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}><button style={{ width: '100%' }}><MapIco size={20} />{tr('GPS', 'Navigate')}</button></a>
         <button className="red" onClick={() => setSos(true)}><ShieldAlert size={20} />{tr('طوارئ', 'SOS')}</button>
       </div>
       <button className={`btn ${step.color} btn-block btn-lg mt`} onClick={advance}>{step.btn}</button>
-      {ride.status !== 'ongoing' && <button className="btn btn-block muted" style={{ '--h': '42px', marginTop: 6 }} onClick={() => setCancel(true)}>{tr('إلغاء الرحلة', 'Cancel ride')}</button>}
-      <Sheet open={cancel} onClose={() => setCancel(false)} title={tr('إلغاء الرحلة؟', 'Cancel ride?')} sub={tr('الإلغاء المتكرر يؤثر على تقييمك وأولوية الطلبات', 'Frequent cancellations affect your rating')}>
+      {ride.status !== 'ongoing' && <button className="btn btn-block muted" style={{ '--h': '42px', marginTop: 6 }} onClick={() => setCancel(true)}>{tr('ألغي الكورسة', 'Cancel ride')}</button>}
+      <Sheet open={cancel} onClose={() => setCancel(false)} title={tr('تلغي الكورسة؟', 'Cancel ride?')} sub={tr('الإلغاء بزاف ينقّص من التقييم تاعك ومن الطلبات', 'Frequent cancellations affect your rating')}>
         <div className="col" style={{ gap: 8 }}>
           {['الراكب لم يحضر', 'الموقع بعيد جدًا', 'مشكلة في السيارة', 'سبب آخر'].map((r) => (
-            <button key={r} className="chip" style={{ height: 46 }} onClick={async () => { await cancelRide(ride.id, 'driver', r); updateDriver(uid, { cancelled: store.inc(1) }).catch(() => {}); setCancel(false); toast(tr('تم الإلغاء', 'Cancelled')) }}>{r}</button>
+            <button key={r} className="chip" style={{ height: 46 }} onClick={async () => { await cancelRide(ride.id, 'driver', r); updateDriver(uid, { cancelled: store.inc(1) }).catch(() => {}); setCancel(false); toast(tr('تلغات', 'Cancelled')) }}>{r}</button>
           ))}
         </div>
       </Sheet>
       <Sheet open={sosOpen} onClose={() => setSos(false)} title={tr('طلب مساعدة', 'Get help')}>
         <div className="col">
-          <a className="btn btn-block" style={{ background: 'var(--danger)', color: '#fff' }} href="tel:1515">{tr('اتصال بالطوارئ 1515', 'Call 1515')}</a>
-          <button className="btn btn-ghost btn-block" onClick={async () => { await sos({ uid, rideId: ride.id, name: driver.name, phone: driver.phone, loc: me, kind: 'driver' }); setSos(false); toast(tr('تم إبلاغ فريق الأمان', 'Safety team alerted'), 'success') }}>{tr('إبلاغ فريق وصلني', 'Alert Wasalni')}</button>
+          <a className="btn btn-block" style={{ background: 'var(--danger)', color: '#fff' }} href="tel:17">{tr('عيّط للشرطة 17', 'Call police 17')}</a>
+          <button className="btn btn-ghost btn-block" onClick={async () => { await sos({ uid, rideId: ride.id, name: driver.name, phone: driver.phone, loc: me, kind: 'driver' }); setSos(false); toast(tr('فريق الأمان تخبّر', 'Safety team alerted'), 'success') }}>{tr('خبّر فريق وصلني', 'Alert Wasalni')}</button>
         </div>
       </Sheet>
     </div>
@@ -395,21 +395,21 @@ function Collect({ ride, uid, settings }) {
   const done = async () => {
     await updateRide(ride.id, { driverClosed: true, ratingByDriver: stars })
     if (!ride.simulated && ride.riderId) store.set(`users/${ride.riderId}`, { ratingSum: store.inc(stars), ratingCount: store.inc(1) }, true).catch(() => {})
-    toast(tr('أحسنت! رحلة موفقة 💪', 'Great job! 💪'), 'success')
+    toast(tr('صحيت! كورسة مليحة 💪', 'Great job! 💪'), 'success')
   }
   return (
     <div className="rise center">
       <div className="pop" style={{ width: 70, height: 70, borderRadius: 24, margin: '0 auto 10px', display: 'grid', placeItems: 'center', background: cash ? 'var(--success-bg)' : 'var(--info-bg)', color: cash ? 'var(--success)' : 'var(--info)' }}>{cash ? <Banknote size={36} /> : <Wallet size={36} />}</div>
-      <div className="small muted">{cash ? tr('استلم من الراكب نقدًا', 'Collect cash from rider') : tr('الرحلة مدفوعة إلكترونيًا', 'Trip is prepaid')}</div>
+      <div className="small muted">{cash ? tr('خوذ الدراهم كاش من الزبون', 'Collect cash from rider') : tr('الكورسة مخلّصة إلكترونيًا', 'Trip is prepaid')}</div>
       <div style={{ fontSize: 40, fontWeight: 800 }} className="num brand-text">{money(ride.fare.total + (ride.tip || 0))}</div>
       <div className="grid3 card" style={{ margin: '12px 0', boxShadow: 'none', background: 'var(--card-2)' }}>
-        <div className="stat"><b className="num">{money(net)}</b><small>{tr('صافي ربحك', 'Net')}</small></div>
+        <div className="stat"><b className="num">{money(net)}</b><small>{tr('الصافي تاعك', 'Net')}</small></div>
         <div className="stat"><b className="num">{money(commission)}</b><small>{tr('عمولة', 'Commission')} {settings.pricing.commission}%</small></div>
-        <div className="stat"><b className="num">{money(ride.tip || 0)}</b><small>{tr('إكرامية', 'Tip')}</small></div>
+        <div className="stat"><b className="num">{money(ride.tip || 0)}</b><small>{tr('بوربوار', 'Tip')}</small></div>
       </div>
       <div className="small muted">{tr(`كيف كان ${ride.riderName}؟`, `Rate ${ride.riderName}`)}</div>
       <div style={{ margin: '8px 0 14px' }}><Stars value={stars} size={34} onChange={setStars} /></div>
-      <button className="btn btn-primary btn-block btn-lg" onClick={done}><Check size={20} />{cash ? tr('تم استلام المبلغ', 'Cash collected') : tr('تم', 'Done')}</button>
+      <button className="btn btn-primary btn-block btn-lg" onClick={done}><Check size={20} />{cash ? tr('خذيت الدراهم', 'Cash collected') : tr('تم', 'Done')}</button>
     </div>
   )
 }
@@ -423,22 +423,22 @@ function DriverDrawer({ open, onClose, driver, nav, online }) {
           <Avatar name={driver.name} src={driver.photo} size={62} style={{ border: '3px solid rgba(255,255,255,.5)' }} />
           <div className="grow">
             <div style={{ fontSize: 18, fontWeight: 600 }}>{driver.name}</div>
-            <div className="small" style={{ opacity: 0.9 }}>{tr('رصيد المحفظة:', 'Wallet:')} <span className="num">{money(driver.wallet || 0)}</span></div>
+            <div className="small" style={{ opacity: 0.9 }}>{tr('رصيد البورتفاي:', 'Wallet:')} <span className="num">{money(driver.wallet || 0)}</span></div>
             <div className="flex tiny" style={{ marginTop: 6, gap: 6 }}>
               <span className="badge" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}><Star size={11} fill="#fff" /><span className="num">{rating(driver)}</span></span>
-              <span className="badge" style={{ background: online ? 'var(--success)' : 'rgba(255,255,255,.2)', color: '#fff' }}>{online ? tr('متصل', 'Online') : tr('غير متصل', 'Offline')}</span>
+              <span className="badge" style={{ background: online ? 'var(--success)' : 'rgba(255,255,255,.2)', color: '#fff' }}>{online ? tr('متصل', 'Online') : tr('ماشي متصل', 'Offline')}</span>
             </div>
           </div>
         </button>
       }
       foot={<div className="tiny muted center" style={{ padding: '10px 0 calc(var(--safe-b) + 12px)' }}>Wasalni Captain v1.0</div>}
     >
-      <DrawerItem icon={<MapIco size={19} />} color="#14b8a6" label={tr('الرحلات', 'Trips')} onClick={() => go('trips')} />
-      <DrawerItem icon={<CalendarClock size={19} />} color="#475569" label={tr('رحلات بحجز مسبق أو مجدولة', 'Scheduled rides')} onClick={() => go('scheduled')} />
-      <DrawerItem icon={<Wallet size={19} />} color="#a16207" label={tr('المحفظة', 'Wallet')} onClick={() => go('wallet')} />
-      <DrawerItem icon={<BadgeDollarSign size={19} />} color="#16a34a" label={tr('الأرباح', 'Earnings')} onClick={() => go('earnings')} />
-      <DrawerItem icon={<Gift size={19} />} color="#ef4444" label={tr('دعوة السائقين', 'Invite drivers')} onClick={() => go('invite')} />
-      <DrawerItem icon={<Users size={19} />} color="#475569" label={tr('الإحالات الخاصة بي', 'My referrals')} onClick={() => go('referrals')} />
+      <DrawerItem icon={<MapIco size={19} />} color="#14b8a6" label={tr('الكورسات', 'Trips')} onClick={() => go('trips')} />
+      <DrawerItem icon={<CalendarClock size={19} />} color="#475569" label={tr('كورسات محجوزة ولا مبرمجة', 'Scheduled rides')} onClick={() => go('scheduled')} />
+      <DrawerItem icon={<Wallet size={19} />} color="#a16207" label={tr('البورتفاي', 'Wallet')} onClick={() => go('wallet')} />
+      <DrawerItem icon={<BadgeDollarSign size={19} />} color="#16a34a" label={tr('المدخول', 'Earnings')} onClick={() => go('earnings')} />
+      <DrawerItem icon={<Gift size={19} />} color="#ef4444" label={tr('عرّض الشيفورات', 'Invite drivers')} onClick={() => go('invite')} />
+      <DrawerItem icon={<Users size={19} />} color="#475569" label={tr('الإحالات تاعي', 'My referrals')} onClick={() => go('referrals')} />
       <DrawerItem icon={<Bell size={19} />} color="#a855f7" label={tr('الإشعارات', 'Notifications')} onClick={() => go('notifications')} />
       <DrawerItem icon={<Phone size={19} />} color="#22c55e" label={tr('اطلب المساعدة', 'Get help')} onClick={() => go('support')} />
       <DrawerItem icon={<Info size={19} />} color="#3b82f6" label={tr('الدعم', 'Support')} onClick={() => go('support')} />

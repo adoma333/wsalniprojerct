@@ -25,8 +25,8 @@ export default function App() {
   let body = null
   if (ready && !st.error) {
     if (!driver || editing) body = <Register uid={st.uid} existing={driver} autoApprove={st.settings.autoApproveDrivers} onDone={() => setEditing(false)} />
-    else if (driver.status === 'pending') body = <Status icon={<Clock size={44} />} color="var(--warning)" title={tr('طلبك قيد المراجعة', 'Under review')} sub={tr('نراجع مستنداتك الآن. ستصلك الموافقة خلال 24 ساعة كحد أقصى.', 'We are reviewing your documents.')} onEdit={() => setEditing(true)} />
-    else if (driver.status === 'rejected') body = <Status icon={<XCircle size={44} />} color="var(--danger)" title={tr('تعذر قبول الطلب', 'Application rejected')} sub={driver.rejectReason || tr('يرجى تحديث المستندات وإعادة الإرسال', 'Please update your documents')} onEdit={() => setEditing(true)} />
+    else if (driver.status === 'pending') body = <Status icon={<Clock size={44} />} color="var(--warning)" title={tr('الطلب تاعك راهو يتراجع', 'Under review')} sub={tr('نراجع مستنداتك دروك. ستصلك الموافقة خلال 24 ساعة كحد أقصى.', 'We are reviewing your documents.')} onEdit={() => setEditing(true)} />
+    else if (driver.status === 'rejected') body = <Status icon={<XCircle size={44} />} color="var(--danger)" title={tr('ما قدرناش نقبلو الطلب', 'Application rejected')} sub={driver.rejectReason || tr('يرجى تحديث المستندات وإعادة الإرسال', 'Please update your documents')} onEdit={() => setEditing(true)} />
     else if (driver.status === 'blocked') body = <Status icon={<XCircle size={44} />} color="var(--danger)" title={tr('الحساب موقوف', 'Account suspended')} sub={tr('تواصل مع الدعم لمزيد من المعلومات', 'Contact support')} />
     else body = (
       <NavProvider render={(p) => { const C = PAGES[p.name]; return C ? <C {...p.params} /> : null }}>
@@ -38,7 +38,7 @@ export default function App() {
     <AppProvider value={ctx}>
       <Toasts />
       <Splash done={ready} />
-      {ready && st.error && <div className="empty" style={{ paddingTop: 120 }}><b>{tr('تعذر الاتصال', 'Connection failed')}</b><div className="small">{st.error}</div></div>}
+      {ready && st.error && <div className="empty" style={{ paddingTop: 120 }}><b>{tr('ما قدرناش نتكونيكتاو', 'Connection failed')}</b><div className="small">{st.error}</div></div>}
       {body}
     </AppProvider>
   )
@@ -51,27 +51,27 @@ function Status({ icon, color, title, sub, onEdit }) {
       <h2 style={{ margin: 0 }}>{title}</h2>
       <p className="muted" style={{ maxWidth: 320 }}>{sub}</p>
       <div className="card pad" style={{ width: '100%', maxWidth: 360, textAlign: 'start' }}>
-        {[[tr('إنشاء الحساب', 'Account created'), true], [tr('رفع المستندات', 'Documents uploaded'), true], [tr('مراجعة فريق وصلني', 'Team review'), false], [tr('ابدأ العمل واربح', 'Start earning'), false]].map(([t, ok], i) => (
+        {[[tr('إنشاء الحساب', 'Account created'), true], [tr('تحميل الوثائق', 'Documents uploaded'), true], [tr('مراجعة فريق وصلني', 'Team review'), false], [tr('ابدا الخدمة واربح', 'Start earning'), false]].map(([t, ok], i) => (
           <div key={i} className="flex" style={{ padding: '8px 0' }}>{ok ? <CheckCircle2 size={20} color="var(--success)" /> : <span style={{ width: 20, height: 20, borderRadius: 10, border: '2px dashed var(--line-2)' }} />}<span className={ok ? '' : 'muted'}>{t}</span></div>
         ))}
       </div>
-      {onEdit && <button className="btn btn-ghost mt" onClick={onEdit}>{tr('تعديل البيانات', 'Edit details')}</button>}
+      {onEdit && <button className="btn btn-ghost mt" onClick={onEdit}>{tr('بدّل المعلومات', 'Edit details')}</button>}
     </div>
   )
 }
 
 const DOCS = [
-  ['license', tr('رخصة القيادة', 'Driving license'), IdCard],
-  ['id', tr('الهوية / جواز السفر', 'National ID / Passport'), FileText],
-  ['carPhoto', tr('صورة السيارة من الأمام', 'Car photo (front)'), Car],
-  ['registration', tr('كتيب السيارة (الملكية)', 'Vehicle registration'), FileCheck2],
+  ['license', tr('البيرمي', 'Driving license'), IdCard],
+  ['id', tr('بطاقة التعريف / الباسبور', 'National ID / Passport'), FileText],
+  ['carPhoto', tr('تصويرة الطوموبيل من القدام', 'Car photo (front)'), Car],
+  ['registration', tr('الكارط قريز', 'Vehicle registration'), FileCheck2],
 ]
 export const DOC_LIST = DOCS
 
 function Register({ uid, existing, autoApprove, onDone }) {
   const [step, setStep] = useState(0)
   const [f, setF] = useState(() => ({
-    name: existing?.name || '', phone: (existing?.phone || '').replace('+218', ''), email: existing?.email || '', city: existing?.city || 'tripoli', photo: existing?.photo || '',
+    name: existing?.name || '', phone: (existing?.phone || '').replace('+213', ''), email: existing?.email || '', city: existing?.city || 'sba', photo: existing?.photo || '',
     vehicle: existing?.vehicle || { make: '', model: '', year: '', color: '', plate: '', class: 'eco' },
     docs: existing?.docs || {}, referral: '',
   }))
@@ -95,22 +95,22 @@ function Register({ uid, existing, autoApprove, onDone }) {
     setBusy(true)
     try {
       await registerDriver(uid, {
-        name: f.name.trim(), phone: '+218' + f.phone.replace(/\D/g, '').replace(/^0+/, '').replace(/^218/, ''), email: f.email, city: f.city, photo: f.photo,
+        name: f.name.trim(), phone: '+213' + f.phone.replace(/\D/g, '').replace(/^0+/, '').replace(/^213/, ''), email: f.email, city: f.city, photo: f.photo,
         vehicle: f.vehicle, docs: f.docs, referredBy: f.referral.toUpperCase(),
       }, autoApprove)
-      toast(autoApprove ? tr('تم تفعيل حسابك، ابدأ العمل الآن 🚀', 'Account activated 🚀') : tr('تم إرسال طلبك للمراجعة ✅', 'Submitted for review ✅'), 'success')
+      toast(autoApprove ? tr('الحساب تاعك تفعّل، ابدا الخدمة دروك 🚀', 'Account activated 🚀') : tr('الطلب تاعك تبعث للمراجعة ✅', 'Submitted for review ✅'), 'success')
       onDone?.()
     } catch (e) { toast(e.message, 'error') }
     setBusy(false)
   }
-  const titles = [tr('بياناتك الشخصية', 'Personal info'), tr('بيانات السيارة', 'Vehicle'), tr('المستندات', 'Documents'), tr('المراجعة والإرسال', 'Review')]
+  const titles = [tr('المعلومات تاعك', 'Personal info'), tr('معلومات الطوموبيل', 'Vehicle'), tr('الوثائق', 'Documents'), tr('المراجعة والإرسال', 'Review')]
   return (
     <div className="page fade">
       <div className="auth-hero" style={{ paddingBottom: 60, background: 'linear-gradient(135deg,#2A1A12,#18120E 60%,#3a1b0c)' }}>
         <div className="flex">
           {step > 0 && <button className="icon-btn sm" style={{ background: 'rgba(255,255,255,.12)', color: '#fff', boxShadow: 'none' }} onClick={() => setStep(step - 1)}><ArrowLeft size={18} style={{ transform: isAr ? 'scaleX(-1)' : '' }} /></button>}
           <img src="brand/mark.svg" alt="" style={{ width: 54, margin: 0 }} />
-          <span className="badge" style={{ background: 'var(--brand)', color: '#fff', marginInlineStart: 'auto' }}>{tr('كابتن وصلني', 'Wasalni Captain')}</span>
+          <span className="badge" style={{ background: 'var(--brand)', color: '#fff', marginInlineStart: 'auto' }}>{tr('شيفور وصلني', 'Wasalni Captain')}</span>
         </div>
         <h1 style={{ marginTop: 18 }}>{titles[step]}</h1>
         <p>{tr(`الخطوة ${step + 1} من 4`, `Step ${step + 1} of 4`)}</p>
@@ -125,18 +125,18 @@ function Register({ uid, existing, autoApprove, onDone }) {
               <span style={{ position: 'absolute', bottom: 0, insetInlineEnd: 0, width: 32, height: 32, borderRadius: 16, background: 'var(--grad)', color: '#fff', display: 'grid', placeItems: 'center', border: '3px solid var(--card)' }}><Camera size={14} /></span>
               <input type="file" accept="image/*" hidden onChange={upload('photo')} />
             </label>
-            <div className="field"><label>{tr('الاسم الكامل', 'Full name')}</label><div className="input-wrap"><User size={18} /><input className="input" value={f.name} onChange={set('name')} /></div></div>
-            <div className="field"><label>{tr('رقم الهاتف', 'Phone')}</label><div className="phone-in"><div className="cc">🇱🇾 +218</div><input className="input" inputMode="tel" value={f.phone} onChange={set('phone')} placeholder="92 345 6789" /></div></div>
+            <div className="field"><label>{tr('الاسم واللقب', 'Full name')}</label><div className="input-wrap"><User size={18} /><input className="input" value={f.name} onChange={set('name')} /></div></div>
+            <div className="field"><label>{tr('رقم التيليفون', 'Phone')}</label><div className="phone-in"><div className="cc">🇩🇿 +213</div><input className="input" inputMode="tel" value={f.phone} onChange={set('phone')} placeholder="661 23 45 67" /></div></div>
             <div className="field"><label>{tr('البريد الإلكتروني', 'Email')}</label><div className="input-wrap"><Mail size={18} /><input className="input" type="email" value={f.email} onChange={set('email')} /></div></div>
             <div className="grid2">
-              <div className="field"><label>{tr('مدينة العمل', 'City')}</label><div className="input-wrap"><MapPin size={18} /><select className="input" value={f.city} onChange={set('city')}>{CITIES.map((c) => <option key={c.id} value={c.id}>{isAr ? c.ar : c.en}</option>)}</select></div></div>
+              <div className="field"><label>{tr('ولاية الخدمة', 'City')}</label><div className="input-wrap"><MapPin size={18} /><select className="input" value={f.city} onChange={set('city')}>{CITIES.map((c) => <option key={c.id} value={c.id}>{isAr ? c.ar : c.en}</option>)}</select></div></div>
               <div className="field"><label>{tr('كود دعوة', 'Invite code')}</label><input className="input" value={f.referral} onChange={set('referral')} placeholder="D12345" /></div>
             </div>
           </div>
         )}
         {step === 1 && (
           <div className="col rise">
-            <div className="field"><label>{tr('فئة السيارة', 'Vehicle class')}</label>
+            <div className="field"><label>{tr('نوع الطوموبيل', 'Vehicle class')}</label>
               <div className="grid2">
                 {[['eco', tr('اقتصادي', 'Economy')], ['comfort', tr('مريح', 'Comfort')], ['family', tr('عائلي', 'Family')], ['vip', 'VIP'], ['moto', tr('توصيل', 'Delivery')]].map(([k, l]) => (
                   <button key={k} className={`cls ${f.vehicle.class === k ? 'active' : ''}`} style={{ flexDirection: 'column', gap: 4, padding: 10 }} onClick={() => setF({ ...f, vehicle: { ...f.vehicle, class: k } })}><ClassCar type={k} w={58} /><b className="small">{l}</b></button>
@@ -144,21 +144,21 @@ function Register({ uid, existing, autoApprove, onDone }) {
               </div>
             </div>
             <div className="grid2">
-              <div className="field"><label>{tr('الشركة المصنعة', 'Make')}</label><div className="input-wrap"><Car size={18} /><input className="input" value={f.vehicle.make} onChange={setV('make')} placeholder={tr('تويوتا', 'Toyota')} /></div></div>
-              <div className="field"><label>{tr('الطراز', 'Model')}</label><input className="input" value={f.vehicle.model} onChange={setV('model')} placeholder={tr('كورولا', 'Corolla')} /></div>
-              <div className="field"><label>{tr('سنة الصنع', 'Year')}</label><div className="input-wrap"><Calendar size={18} /><input className="input" inputMode="numeric" value={f.vehicle.year} onChange={setV('year')} placeholder="2018" /></div></div>
-              <div className="field"><label>{tr('اللون', 'Color')}</label><div className="input-wrap"><Palette size={18} /><input className="input" value={f.vehicle.color} onChange={setV('color')} placeholder={tr('أبيض', 'White')} /></div></div>
+              <div className="field"><label>{tr('الماركة', 'Make')}</label><div className="input-wrap"><Car size={18} /><input className="input" value={f.vehicle.make} onChange={setV('make')} placeholder={tr('رونو', 'Toyota')} /></div></div>
+              <div className="field"><label>{tr('الموديل', 'Model')}</label><input className="input" value={f.vehicle.model} onChange={setV('model')} placeholder={tr('سامبول', 'Corolla')} /></div>
+              <div className="field"><label>{tr('العام', 'Year')}</label><div className="input-wrap"><Calendar size={18} /><input className="input" inputMode="numeric" value={f.vehicle.year} onChange={setV('year')} placeholder="2018" /></div></div>
+              <div className="field"><label>{tr('اللون', 'Color')}</label><div className="input-wrap"><Palette size={18} /><input className="input" value={f.vehicle.color} onChange={setV('color')} placeholder={tr('بيضاء', 'White')} /></div></div>
             </div>
-            <div className="field"><label>{tr('رقم اللوحة', 'Plate number')}</label><div className="input-wrap"><Hash size={18} /><input className="input" value={f.vehicle.plate} onChange={setV('plate')} placeholder="5-123456" style={{ direction: 'ltr', letterSpacing: 2 }} /></div></div>
+            <div className="field"><label>{tr('رقم الماتريكول', 'Plate number')}</label><div className="input-wrap"><Hash size={18} /><input className="input" value={f.vehicle.plate} onChange={setV('plate')} placeholder="12345 116 22" style={{ direction: 'ltr', letterSpacing: 2 }} /></div></div>
           </div>
         )}
         {step === 2 && (
           <div className="col rise">
-            <div className="small muted">{tr('صوّر المستندات بوضوح. تُحفظ بشكل آمن ولا تظهر إلا لفريق المراجعة.', 'Take clear photos. Only our review team can see them.')}</div>
+            <div className="small muted">{tr('صوّر الوثائق مليح. محفوظين في أمان وما يشوفهم غير فريق المراجعة.', 'Take clear photos. Only our review team can see them.')}</div>
             {DOCS.map(([k, label, I]) => (
               <label key={k} className="row" style={{ border: '1.5px dashed ' + (f.docs[k] ? 'var(--success)' : 'var(--line-2)'), borderRadius: 18, cursor: 'pointer', background: f.docs[k] ? 'var(--success-bg)' : 'var(--card-2)' }}>
                 {f.docs[k] ? <img src={f.docs[k]} alt="" style={{ width: 54, height: 42, objectFit: 'cover', borderRadius: 10 }} /> : <span className="ri" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}><I size={20} /></span>}
-                <span className="rt"><b>{label}</b><small>{f.docs[k] ? tr('تم الرفع ✓ اضغط للتغيير', 'Uploaded ✓ tap to change') : tr('اضغط لالتقاط أو اختيار صورة', 'Tap to take or choose a photo')}</small></span>
+                <span className="rt"><b>{label}</b><small>{f.docs[k] ? tr('تحمّلت ✓ اضغط باش تبدّل', 'Uploaded ✓ tap to change') : tr('اضغط باش تصوّر ولا تختار تصويرة', 'Tap to take or choose a photo')}</small></span>
                 {f.docs[k] ? <CheckCircle2 color="var(--success)" /> : <Camera size={20} color="var(--muted)" />}
                 <input type="file" accept="image/*" capture="environment" hidden onChange={upload(k)} />
               </label>
@@ -167,17 +167,17 @@ function Register({ uid, existing, autoApprove, onDone }) {
         )}
         {step === 3 && (
           <div className="col rise">
-            <div className="flex"><Avatar name={f.name} src={f.photo} size={56} /><div><b>{f.name}</b><div className="small muted num">+218 {f.phone}</div></div></div>
+            <div className="flex"><Avatar name={f.name} src={f.photo} size={56} /><div><b>{f.name}</b><div className="small muted num">+213 {f.phone}</div></div></div>
             <div className="card pad flex" style={{ background: 'var(--card-2)', boxShadow: 'none' }}><ClassCar type={f.vehicle.class} /><div><b>{f.vehicle.make} {f.vehicle.model} {f.vehicle.year}</b><div className="small muted">{f.vehicle.color} • <span className="num">{f.vehicle.plate}</span></div></div></div>
-            <div className="flex small" style={{ color: 'var(--success)' }}><ShieldCheck size={18} />{tr('تم رفع 4 مستندات', '4 documents uploaded')}</div>
-            <div className="small muted">{tr('بالضغط على إرسال أنت توافق على شروط العمل مع وصلني وسياسة الخصوصية.', 'By submitting you accept the driver terms.')}</div>
+            <div className="flex small" style={{ color: 'var(--success)' }}><ShieldCheck size={18} />{tr('تحمّلو 4 وثائق', '4 documents uploaded')}</div>
+            <div className="small muted">{tr('كي تضغط ابعث راك موافق على شروط الخدمة مع وصلني والخصوصية.', 'By submitting you accept the driver terms.')}</div>
           </div>
         )}
       </div>
       </div>
       <div className="page-foot">
         <button className="btn btn-primary btn-block btn-lg" disabled={!valid[step] || busy} onClick={() => (step < 3 ? setStep(step + 1) : submit())}>
-          {busy ? <span className="spinner" /> : step < 3 ? tr('التالي', 'Next') : tr('إرسال الطلب', 'Submit')}
+          {busy ? <span className="spinner" /> : step < 3 ? tr('التالي', 'Next') : tr('ابعث الطلب', 'Submit')}
         </button>
       </div>
     </div>

@@ -22,7 +22,7 @@ export default function Rewards() {
   useEffect(() => watchTx(uid, setTx), [uid])
   useEffect(() => watchRiderRides(uid, setRides), [uid])
   const points = user.points || 0
-  const avg = 12
+  const avg = 300
   const lvl = levelOf(user.earnedTotal)
   const next = LEVELS[LEVELS.indexOf(lvl) + 1]
   const today = new Date().toISOString().slice(0, 10)
@@ -31,27 +31,27 @@ export default function Rewards() {
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(Date.now() - (6 - i) * 86400000)
     const key = d.toISOString().slice(0, 10)
-    return { label: d.toLocaleDateString('ar-LY', { weekday: 'short' }), on: pts.some((t) => t.kind === 'reel' && new Date(t.at).toISOString().slice(0, 10) === key) }
+    return { label: d.toLocaleDateString('ar-DZ', { weekday: 'short' }), on: pts.some((t) => t.kind === 'reel' && new Date(t.at).toISOString().slice(0, 10) === key) }
   })
   const streak = (() => { let s = 0; for (let i = days.length - 1; i >= 0; i--) { if (days[i].on) s++; else if (i !== days.length - 1) break } return s })()
   const weekRides = rides.filter((r) => r.status === 'completed' && Date.now() - r.createdAt < 7 * 86400000).length
   const missions = [
-    { icon: Eye, c: '#E8650A', t: tr('شاهد 5 ريلز اليوم', 'Watch 5 reels today'), p: todayCount, n: 5, r: '🏅' },
-    { icon: Flame, c: '#ef4444', t: tr('شاهد 15 ريلز اليوم', 'Watch 15 reels today'), p: todayCount, n: 15, r: '🔥' },
-    { icon: Car, c: '#2E90FA', t: tr('أكمل 3 رحلات هذا الأسبوع', 'Complete 3 rides this week'), p: weekRides, n: 3, r: '🚗' },
-    { icon: Users, c: '#12B76A', t: tr('ادعُ صديقًا للتسجيل', 'Invite a friend'), p: user.referrals || 0, n: 1, r: '🤝' },
+    { icon: Eye, c: '#E8650A', t: tr('شوف 5 ريلز اليوم', 'Watch 5 reels today'), p: todayCount, n: 5, r: '🏅' },
+    { icon: Flame, c: '#ef4444', t: tr('شوف 15 ريلز اليوم', 'Watch 15 reels today'), p: todayCount, n: 15, r: '🔥' },
+    { icon: Car, c: '#2E90FA', t: tr('كمّل 3 كورسات هاد السمانة', 'Complete 3 rides this week'), p: weekRides, n: 3, r: '🚗' },
+    { icon: Users, c: '#12B76A', t: tr('عرّض صاحبك يسجّل', 'Invite a friend'), p: user.referrals || 0, n: 1, r: '🤝' },
   ]
   return (
-    <Page title={tr('المكافآت', 'Rewards')}>
+    <Page title={tr('الكادوات', 'Rewards')}>
       <div className="rw-hero rise">
         <div className="between" style={{ position: 'relative' }}>
           <span className="lvl"><Crown size={14} color={lvl.c} fill={lvl.c} />{tr(`مستوى ${lvl.ar}`, `${lvl.en} level`)}</span>
           <span className="lvl"><Flame size={14} />{tr(`${streak} أيام`, `${streak} days`)}</span>
         </div>
-        <div style={{ position: 'relative', marginTop: 14, opacity: 0.9, fontSize: 14 }}>{tr('رصيد المكافآت', 'Rewards balance')}</div>
-        <div className="big" style={{ position: 'relative' }}><span className="num">{num(points)}</span><small>{tr('دينار', 'LYD')}</small></div>
+        <div style={{ position: 'relative', marginTop: 14, opacity: 0.9, fontSize: 14 }}>{tr('رصيد الكادوات', 'Rewards balance')}</div>
+        <div className="big" style={{ position: 'relative' }}><span className="num">{num(points)}</span><small>{tr('دينار', 'DA')}</small></div>
         <div style={{ position: 'relative', fontSize: 13.5 }}>
-          {points >= avg ? tr(`🎉 يكفي لـ ${Math.floor(points / avg)} رحلة مجانية تقريبًا`, `🎉 Enough for ~${Math.floor(points / avg)} free rides`) : tr(`باقي ${money(avg - points)} لأول رحلة مجانية`, `${money(avg - points)} to your first free ride`)}
+          {points >= avg ? tr(`🎉 يكفي لـ ${Math.floor(points / avg)} كورسة بلاش تقريبًا`, `🎉 Enough for ~${Math.floor(points / avg)} free rides`) : tr(`باقي ${money(avg - points)} لأول كورسة بلاش`, `${money(avg - points)} to your first free ride`)}
         </div>
         <div className="bar"><i style={{ width: Math.min(100, (points / avg) * 100) + '%' }} /></div>
         {next && <div className="tiny" style={{ position: 'relative', opacity: 0.85 }}>{tr(`${money(next.min - (user.earnedTotal || 0))} للوصول إلى المستوى ${next.ar}`, `${money(next.min - (user.earnedTotal || 0))} to ${next.en}`)}</div>}
@@ -59,7 +59,7 @@ export default function Rewards() {
 
       <button className="watch-cta rise" style={{ animationDelay: '.08s' }} onClick={() => nav.push('reels')}>
         <span className="thumbs">{[0, 1, 2].map((i) => <div key={i} style={{ backgroundImage: 'url(reels/ad.jpg)', filter: `hue-rotate(${i * 25}deg)` }} />)}</span>
-        <span><b>{tr('شاهد واربح الآن', 'Watch & earn now')}</b><small>{tr(`${settings.rewards.perReel} دينار لكل ريل • ${settings.rewards.watchSeconds} ثانية فقط`, `${settings.rewards.perReel} LYD per reel • ${settings.rewards.watchSeconds}s`)}</small></span>
+        <span><b>{tr('شوف واربح دروك', 'Watch & earn now')}</b><small>{tr(`${settings.rewards.perReel} دينار لكل ريل • ${settings.rewards.watchSeconds} ثانية فقط`, `${settings.rewards.perReel} DA per reel • ${settings.rewards.watchSeconds}s`)}</small></span>
         <span className="play"><Play size={20} fill="#fff" /></span>
       </button>
 
@@ -80,11 +80,11 @@ export default function Rewards() {
         ))}
       </div>
 
-      <div className="section-title">{tr('كيف تركب مجانًا؟', 'How to ride free?')}</div>
+      <div className="section-title">{tr('كيفاش تركب بلاش؟', 'How to ride free?')}</div>
       <div className="card pad steps3">
-        <div className="s"><i>1</i><span>{tr('افتح الريلز وشاهد الإعلان حتى نهايته', 'Open reels and watch an ad to the end')}</span></div>
-        <div className="s"><i>2</i><span>{tr(`يُضاف ${settings.rewards.perReel} دينار فورًا لرصيد مكافآتك`, `${settings.rewards.perReel} LYD is added instantly`)}</span></div>
-        <div className="s"><i>3</i><span>{tr('عند طلب رحلة اختر الدفع بالنقاط لتكون مجانية', 'Pay with points at checkout for a free ride')}</span></div>
+        <div className="s"><i>1</i><span>{tr('حل الريلز وشوف الإشهار حتى للخر', 'Open reels and watch an ad to the end')}</span></div>
+        <div className="s"><i>2</i><span>{tr(`يُضاف ${settings.rewards.perReel} دينار فورًا لرصيد الكادوات تاعك`, `${settings.rewards.perReel} DA is added instantly`)}</span></div>
+        <div className="s"><i>3</i><span>{tr('كي تطلب كورسة اختار الخلاص بالنقاط وتولي بلاش', 'Pay with points at checkout for a free ride')}</span></div>
       </div>
 
       <div className="section-title">{tr('المستويات', 'Levels')}</div>
@@ -98,9 +98,9 @@ export default function Rewards() {
         ))}
       </div>
 
-      <div className="section-title">{tr('سجل النقاط', 'Points history')}</div>
+      <div className="section-title">{tr('تاريخ النقاط', 'Points history')}</div>
       <div className="list">
-        {pts.length === 0 && <div className="empty" style={{ padding: 26 }}><b>{tr('لا توجد حركات بعد', 'No activity yet')}</b><div className="small">{tr('شاهد أول ريل واربح', 'Watch your first reel')}</div></div>}
+        {pts.length === 0 && <div className="empty" style={{ padding: 26 }}><b>{tr('ما كاين حتى حركة', 'No activity yet')}</b><div className="small">{tr('شوف أول ريل واربح', 'Watch your first reel')}</div></div>}
         {pts.slice(0, 30).map((t) => (
           <div key={t.id} className="tx">
             <span className="txi" style={{ background: t.amount > 0 ? 'var(--success-bg)' : 'var(--brand-50)', color: t.amount > 0 ? 'var(--success)' : 'var(--brand)' }}>{t.kind === 'reel' ? <Sparkles size={18} /> : t.amount > 0 ? <ArrowDownLeft size={18} /> : <Gift size={18} />}</span>

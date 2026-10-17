@@ -63,8 +63,8 @@ function restyle(map, dark) {
         id: 'w-3d', type: 'fill-extrusion', source: src, 'source-layer': 'building', minzoom: 15,
         paint: {
           'fill-extrusion-color': P.b3d,
-          'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, ['coalesce', ['get', 'render_height'], 8]],
-          'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+          'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, ['to-number', ['coalesce', ['get', 'render_height'], 8], 8]],
+          'fill-extrusion-base': ['to-number', ['coalesce', ['get', 'render_min_height'], 0], 0],
           'fill-extrusion-opacity': 0.75,
         },
       }, firstSymbol)

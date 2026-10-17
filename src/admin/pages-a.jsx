@@ -56,7 +56,7 @@ export function Overview() {
   const series = Array.from({ length: 14 }, (_, i) => {
     const t = now - (13 - i) * DAY
     const k = dayKey(t)
-    return { label: new Date(t).toLocaleDateString('ar-LY', { day: 'numeric', month: 'short' }), v: rides.filter((r) => dayKey(r.createdAt) === k).length, rev: revenue(done.filter((r) => dayKey(r.completedAt || r.createdAt) === k)) }
+    return { label: new Date(t).toLocaleDateString('ar-DZ', { day: 'numeric', month: 'short' }), v: rides.filter((r) => dayKey(r.createdAt) === k).length, rev: revenue(done.filter((r) => dayKey(r.completedAt || r.createdAt) === k)) }
   })
   const byClass = settings.pricing.classes.map((c, i) => ({ label: c.ar, v: rides.filter((r) => r.classId === c.id).length, c: ['#E8650A', '#2E90FA', '#12B76A', '#18120E', '#F5A524'][i % 5] }))
   const pending = drivers.filter((d) => d.status === 'pending')

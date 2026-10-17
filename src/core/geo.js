@@ -22,7 +22,7 @@ const lang = isAr ? 'ar' : 'en'
 function photonLabel(p) {
   const name = p.name || p.street || ''
   const sub = [p.street && p.name !== p.street ? p.street : null, p.district, p.city || p.county, p.state].filter(Boolean)
-  return { title: name || sub[0] || tr('موقع', 'Place'), subtitle: [...new Set(sub)].filter((x) => x !== name).slice(0, 2).join('، ') }
+  return { title: name || sub[0] || tr('بلاصة', 'Place'), subtitle: [...new Set(sub)].filter((x) => x !== name).slice(0, 2).join('، ') }
 }
 
 export async function searchPlaces(q, near) {
@@ -66,7 +66,7 @@ export async function reverse(coords) {
     const f = j.features?.[0]
     if (f) return { ...photonLabel(f.properties), coords }
   } catch {}
-  return { title: tr('موقع محدد', 'Pinned location'), subtitle: key, coords }
+  return { title: tr('بلاصة محددة', 'Pinned location'), subtitle: key, coords }
 }
 
 // مسار على الطرق الحقيقية، وعند تعذّر الخدمة: خط منحنٍ تقديري

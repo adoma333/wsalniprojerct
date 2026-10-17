@@ -51,7 +51,7 @@ export default function SearchPage({ initial, focus = 'dropoff', near, onDone, o
     setLoading(false)
     if (!p) return
     const r = await reverse(p.coords)
-    choose({ ...r, title: tr('موقعي الحالي', 'Current location'), subtitle: r.title, current: true })
+    choose({ ...r, title: tr('البلاصة اللي راني فيها', 'Current location'), subtitle: r.title, current: true })
   }
   const pickOnMap = () => {
     nav.back()
@@ -60,8 +60,8 @@ export default function SearchPage({ initial, focus = 'dropoff', near, onDone, o
   const [showStop, setShowStop] = useState(false)
 
   const saved = [
-    user.savedPlaces?.home && { ...user.savedPlaces.home, icon: HomeIco, label: tr('المنزل', 'Home') },
-    user.savedPlaces?.work && { ...user.savedPlaces.work, icon: Briefcase, label: tr('العمل', 'Work') },
+    user.savedPlaces?.home && { ...user.savedPlaces.home, icon: HomeIco, label: tr('الدار', 'Home') },
+    user.savedPlaces?.work && { ...user.savedPlaces.work, icon: Briefcase, label: tr('الخدمة', 'Work') },
     ...(user.savedPlaces?.others || []).map((p) => ({ ...p, icon: Star, label: p.name })),
   ].filter(Boolean)
 
@@ -76,18 +76,18 @@ export default function SearchPage({ initial, focus = 'dropoff', near, onDone, o
     <div className="page search-page">
       <div className="appbar">
         <button className="back" onClick={nav.back}><ArrowLeft size={20} /></button>
-        <h1>{schedule ? tr('جدولة رحلة', 'Schedule a ride') : tr('إلى أين؟', 'Where to?')}</h1>
+        <h1>{schedule ? tr('جدولة كورسة', 'Schedule a ride') : tr('وين رايح؟', 'Where to?')}</h1>
       </div>
       <div style={{ padding: '0 14px' }}>
         <div className="inputs">
           <div className="route-line"><span className="a" /><span className="l" />{(d.stops?.length > 0 || showStop) && <><span className="b" style={{ background: 'var(--warning)', borderRadius: 3 }} /><span className="l" /></>}<span className="b" /></div>
           <div className="ins">
-            {input('pickup', tr('نقطة الانطلاق', 'Pickup location'))}
+            {input('pickup', tr('منين راك ناوي تنطلق', 'Pickup location'))}
             {d.stops?.map((s, i) => (
               <div key={i}><input value={s.title} readOnly /><button style={{ padding: 8, color: 'var(--faint)' }} onClick={() => setD({ ...d, stops: d.stops.filter((_, j) => j !== i) })}><X size={18} /></button></div>
             ))}
-            {showStop && input('stop', tr('أضف نقطة توقف', 'Add a stop'))}
-            {input('dropoff', tr('إلى أين تريد أن تذهب؟', 'Where to?'))}
+            {showStop && input('stop', tr('زيد وقفة', 'Add a stop'))}
+            {input('dropoff', tr('وين حاب تروح؟', 'Where to?'))}
           </div>
           {(d.stops?.length || 0) < 2 && !showStop && <button className="add-stop" onClick={() => { setShowStop(true); setField('stop'); setTimeout(() => refs.stop.current?.focus(), 50) }} aria-label="add stop"><Plus size={24} /></button>}
         </div>
@@ -97,12 +97,12 @@ export default function SearchPage({ initial, focus = 'dropoff', near, onDone, o
           {field === 'pickup' && (
             <button className="place-row" onClick={useCurrent}>
               <span className="pi" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}><Crosshair size={18} /></span>
-              <span className="pt"><b>{tr('استخدم موقعي الحالي', 'Use current location')}</b><small>{tr('تحديد تلقائي عبر GPS', 'Automatic via GPS')}</small></span>
+              <span className="pt"><b>{tr('استعمل البلاصة اللي راني فيها', 'Use current location')}</b><small>{tr('تحديد أوتوماتيكي بالـ GPS', 'Automatic via GPS')}</small></span>
             </button>
           )}
           <button className="place-row" onClick={pickOnMap}>
             <span className="pi" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}><MapIco size={18} /></span>
-            <span className="pt"><b style={{ color: 'var(--brand)' }}>{tr('حدد المكان من الخريطة', 'Choose on map')}</b><small>{tr('حرّك الدبوس إلى الموقع بدقة', 'Drag the pin to the exact spot')}</small></span>
+            <span className="pt"><b style={{ color: 'var(--brand)' }}>{tr('حدد البلاصة من الخريطة', 'Choose on map')}</b><small>{tr('حرّك الدبوس للبلاصة بالضبط', 'Drag the pin to the exact spot')}</small></span>
           </button>
           {loading && <div style={{ padding: 10 }}>{[1, 2, 3].map((i) => <div key={i} className="flex" style={{ padding: '10px 0' }}><div className="skeleton" style={{ width: 40, height: 40, borderRadius: 20 }} /><div className="grow"><div className="skeleton" style={{ height: 13, width: '70%' }} /><div className="skeleton" style={{ height: 10, width: '45%', marginTop: 6 }} /></div></div>)}</div>}
           {!loading && res.map((r, i) => {
@@ -116,11 +116,11 @@ export default function SearchPage({ initial, focus = 'dropoff', near, onDone, o
             )
           })}
           {!loading && query.length >= 2 && res.length === 0 && !(field !== 'stop' && d[field]?.title === query) && (
-            <div className="empty" style={{ padding: 24 }}><b>{tr('لا توجد نتائج', 'No results')}</b><div className="small">{tr('جرّب اسمًا آخر أو حدد من الخريطة', 'Try another name or use the map')}</div></div>
+            <div className="empty" style={{ padding: 24 }}><b>{tr('ما كاين والو', 'No results')}</b><div className="small">{tr('جرّب اسم آخر ولا حدد من الخريطة', 'Try another name or use the map')}</div></div>
           )}
           {query.length < 2 && saved.length > 0 && (
             <>
-              <div className="section-title">{tr('الأماكن المحفوظة', 'Saved places')}</div>
+              <div className="section-title">{tr('البلايص المحفوظة', 'Saved places')}</div>
               {saved.map((p, i) => (
                 <button key={i} className="place-row" onClick={() => choose(p)}>
                   <span className="pi"><p.icon size={18} /></span>
@@ -134,7 +134,7 @@ export default function SearchPage({ initial, focus = 'dropoff', near, onDone, o
               <div className="section-title">{tr('اقتراحات', 'Suggestions')}</div>
               {[[tr('مطار', 'Airport'), Plane], [tr('مستشفى', 'Hospital'), Hospital], [tr('جامعة', 'University'), GraduationCap], [tr('مول', 'Mall'), ShoppingBag]].map(([t, I]) => (
                 <button key={t} className="place-row" onClick={() => setQ({ ...q, [field]: t })}>
-                  <span className="pi"><I size={18} /></span><span className="pt"><b>{t}</b><small>{tr('ابحث بالقرب منك', 'Search nearby')}</small></span>
+                  <span className="pi"><I size={18} /></span><span className="pt"><b>{t}</b><small>{tr('حوّس قريب منك', 'Search nearby')}</small></span>
                 </button>
               ))}
             </>

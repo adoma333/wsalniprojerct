@@ -142,7 +142,7 @@ function Reel({ i, reel, active, near, seen, liked, stats, uid, total, onComplet
   }
   const share = async () => {
     const r = await shareLink({ title: reel.advertiser, text: `${reel.caption}\n— ${tr('شاهد واربح مع وصلني', 'Watch & earn with Wasalni')}`, url: SITE_URL || location.origin })
-    if (r) { shareReel(reel.id); if (r === 'copied') toast(tr('تم نسخ الرابط', 'Link copied')) }
+    if (r) { shareReel(reel.id); if (r === 'copied') toast(tr('الرابط تنسخ', 'Link copied')) }
   }
   const toggleSave = () => {
     const s = !saved
@@ -151,7 +151,7 @@ function Reel({ i, reel, active, near, seen, liked, stats, uid, total, onComplet
       const arr = JSON.parse(localStorage.getItem('w_saved') || '[]')
       localStorage.setItem('w_saved', JSON.stringify(s ? [...arr, reel.id] : arr.filter((x) => x !== reel.id)))
     } catch {}
-    toast(s ? tr('تم الحفظ', 'Saved') : tr('أزيل من المحفوظات', 'Removed'))
+    toast(s ? tr('تسجّل', 'Saved') : tr('تنحّى من المحفوظات', 'Removed'))
   }
 
   const likes = (reel.baseLikes || 0) + (stats?.likes || 0)
@@ -200,7 +200,7 @@ function Reel({ i, reel, active, near, seen, liked, stats, uid, total, onComplet
         <div className="earn-pop">
           <div className="coinbig num">+{reel.reward}</div>
           <b>{tr(`ربحت ${money(reel.reward)}`, `You earned ${money(reel.reward)}`)}</b>
-          <div className="small" style={{ opacity: 0.9 }}>{tr('أضيفت لرصيد مكافآتك', 'Added to your rewards')}</div>
+          <div className="small" style={{ opacity: 0.9 }}>{tr('تزادت في رصيد الكادوات', 'Added to your rewards')}</div>
         </div>
       )}
 
@@ -221,9 +221,9 @@ function Reel({ i, reel, active, near, seen, liked, stats, uid, total, onComplet
           <span className="av" style={{ background: reel.tint || 'var(--brand)' }}>{reel.advertiser?.[0]}</span>
           <div>
             <b>{reel.advertiser} <BadgeCheck size={15} fill="#3897f0" color="#fff" /></b>
-            <small>{reel.handle ? '@' + reel.handle : ''} • <span className="sponsored">{tr('ممول', 'Sponsored')}</span></small>
+            <small>{reel.handle ? '@' + reel.handle : ''} • <span className="sponsored">{tr('سبونسو', 'Sponsored')}</span></small>
           </div>
-          <button className={`follow ${follow ? 'on' : ''}`} onClick={() => setFollow(!follow)}>{follow ? tr('تتابعه', 'Following') : tr('متابعة', 'Follow')}</button>
+          <button className={`follow ${follow ? 'on' : ''}`} onClick={() => setFollow(!follow)}>{follow ? tr('راك تتابعو', 'Following') : tr('تابع', 'Follow')}</button>
         </div>
         <div className="cap">{reel.caption}</div>
         <div className="music"><Music2 size={14} /><span>{reel.music || tr('صوت أصلي', 'Original audio')} • {reel.advertiser}</span></div>
@@ -247,7 +247,7 @@ function CommentsSheet({ reel, onClose, uid, name, stats }) {
   return (
     <Sheet open={!!reel} onClose={onClose} title={tr('التعليقات', 'Comments')} style={{ maxHeight: '75vh' }}>
       <div className="comments-sheet">
-        {all.length === 0 && <div className="empty" style={{ padding: 24 }}><b>{tr('لا توجد تعليقات بعد', 'No comments yet')}</b><div className="small">{tr('كن أول من يعلّق', 'Be the first to comment')}</div></div>}
+        {all.length === 0 && <div className="empty" style={{ padding: 24 }}><b>{tr('ما كاين حتى تعليق', 'No comments yet')}</b><div className="small">{tr('كون الأول اللي يعلّق', 'Be the first to comment')}</div></div>}
         {all.map((c) => (
           <div key={c.id} className="comment">
             <Avatar name={c.name} size={36} />
@@ -257,8 +257,8 @@ function CommentsSheet({ reel, onClose, uid, name, stats }) {
         ))}
         <div className="comment-input">
           <Avatar name={name} size={36} />
-          <input className="input" style={{ height: 46 }} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder={tr('أضف تعليقًا…', 'Add a comment…')} />
-          <button className="btn btn-primary btn-sm" onClick={send} disabled={!text.trim()}>{tr('نشر', 'Post')}</button>
+          <input className="input" style={{ height: 46 }} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder={tr('زيد تعليق…', 'Add a comment…')} />
+          <button className="btn btn-primary btn-sm" onClick={send} disabled={!text.trim()}>{tr('انشر', 'Post')}</button>
         </div>
       </div>
     </Sheet>

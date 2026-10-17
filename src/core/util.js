@@ -21,7 +21,7 @@ export function setTheme(t) { localStorage.setItem('w_theme', t); applyTheme(t);
 export const isDark = () => document.documentElement.dataset.theme === 'dark'
 
 // ===== أرقام ومال =====
-const nf = new Intl.NumberFormat(isAr ? 'ar-LY' : 'en-US', { maximumFractionDigits: 2, minimumFractionDigits: 0 })
+const nf = new Intl.NumberFormat(isAr ? 'ar-DZ' : 'en-US', { maximumFractionDigits: 2, minimumFractionDigits: 0 })
 const nfEn = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
 export const num = (n) => nfEn.format(Number(n) || 0)
 export const money = (n) => `${nfEn.format(Math.round((Number(n) || 0) * 100) / 100)} ${isAr ? BRAND.currency : BRAND.currencyEn}`
@@ -37,13 +37,13 @@ export function mins(m) {
 }
 export function timeAgo(t) {
   const s = Math.floor((Date.now() - t) / 1000)
-  if (s < 60) return tr('الآن', 'now')
+  if (s < 60) return tr('دروك', 'now')
   if (s < 3600) return tr(`منذ ${Math.floor(s / 60)} د`, `${Math.floor(s / 60)}m ago`)
   if (s < 86400) return tr(`منذ ${Math.floor(s / 3600)} س`, `${Math.floor(s / 3600)}h ago`)
   return tr(`منذ ${Math.floor(s / 86400)} يوم`, `${Math.floor(s / 86400)}d ago`)
 }
 export function dateTime(t) {
-  return new Date(t).toLocaleString(isAr ? 'ar-LY' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(t).toLocaleString(isAr ? 'ar-DZ' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 export function compact(n) {
   n = Number(n) || 0
@@ -100,13 +100,17 @@ export function seeded(seed) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296)
 }
 export function initials(name = '') {
-  return name.trim().split(/\s+/).slice(0, 2).map((w) => (w.startsWith('ال') && w.length > 2 ? w[2] : w[0])).join(' ').toUpperCase() || 'و'
+  const w = name.trim().split(/\s+/).filter(Boolean)
+  if (!w.length) return 'و'
+  // العربية: حرف واحد (الحروف المنفصلة تبدو مكسورة)، اللاتينية: حرفان
+  if (/[\u0600-\u06FF]/.test(w[0])) return w[0].startsWith('ال') && w[0].length > 2 ? w[0][2] : w[0][0]
+  return w.slice(0, 2).map((x) => x[0]).join('').toUpperCase()
 }
 export function greeting() {
   const h = new Date().getHours()
   if (h < 12) return tr('صباح الخير', 'Good morning')
-  if (h < 18) return tr('مساء الخير', 'Good afternoon')
-  return tr('مساء الخير', 'Good evening')
+  if (h < 18) return tr('مسا الخير', 'Good afternoon')
+  return tr('مسا الخير', 'Good evening')
 }
 export function haptic(type = 'light') {
   import('@capacitor/haptics').then(({ Haptics, ImpactStyle }) => {

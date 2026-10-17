@@ -141,7 +141,7 @@ function ReelEditor({ r, onClose }) {
           <div className="form-grid">
             <Field label="رابط الزر"><input className="input" value={f.link} onChange={set('link')} dir="ltr" placeholder="https://" /></Field>
             <Field label="رابط فيديو (اختياري)" hint="MP4 مباشر"><input className="input" value={f.video} onChange={set('video')} dir="ltr" /></Field>
-            <Field label="المكافأة (د.ل)" hint="فارغ = الافتراضي"><input className="input" type="number" value={f.reward} onChange={set('reward')} /></Field>
+            <Field label="المكافأة (دج)" hint="فارغ = الافتراضي"><input className="input" type="number" value={f.reward} onChange={set('reward')} /></Field>
             <Field label="مدة المشاهدة (ث)" hint="فارغ = الافتراضي"><input className="input" type="number" value={f.duration} onChange={set('duration')} /></Field>
             <Field label="الترتيب"><input className="input" type="number" value={f.order} onChange={set('order')} /></Field>
             <Field label="لون الطبقة"><input className="input" type="color" value={f.tint} onChange={set('tint')} style={{ padding: 4 }} /></Field>
@@ -177,14 +177,14 @@ export function RewardsAdmin() {
       <div className="panel-card">
         <h3>إعدادات المكافآت<span className="sp" /><button className="btn btn-primary btn-sm" onClick={async () => { await saveSettings({ rewards: r }); toast('تم الحفظ ✅', 'success') }}><Save size={16} />حفظ</button></h3>
         <div className="form-grid">
-          <Field label="مكافأة كل ريل (د.ل)"><input className="input" type="number" value={r.perReel} onChange={(e) => setR({ ...r, perReel: N(e.target.value) })} /></Field>
+          <Field label="مكافأة كل ريل (دج)"><input className="input" type="number" value={r.perReel} onChange={(e) => setR({ ...r, perReel: N(e.target.value) })} /></Field>
           <Field label="مدة المشاهدة المطلوبة (ثانية)"><input className="input" type="number" value={r.watchSeconds} onChange={(e) => setR({ ...r, watchSeconds: N(e.target.value) })} /></Field>
           <Field label="الحد اليومي للمشاهدات"><input className="input" type="number" value={r.dailyLimit} onChange={(e) => setR({ ...r, dailyLimit: N(e.target.value) })} /></Field>
           <Field label="مكافأة الإحالة"><input className="input" type="number" value={r.referralBonus} onChange={(e) => setR({ ...r, referralBonus: N(e.target.value) })} /></Field>
         </div>
         <label className="flex mt"><Switch on={r.builtinReels} onChange={(v) => setR({ ...r, builtinReels: v })} />إظهار الـ 100 ريل المدمجة</label>
         <div className="calc mt small">
-          <b>حساب سريع:</b> زبون يشاهد {r.dailyLimit} ريل يوميًا يربح <b className="num">{money(r.dailyLimit * r.perReel)}</b> في اليوم ≈ <b className="num">{Math.floor((r.dailyLimit * r.perReel) / 12)}</b> رحلة اقتصادية مجانية.
+          <b>حساب سريع:</b> زبون يشاهد {r.dailyLimit} ريل يوميًا يربح <b className="num">{money(r.dailyLimit * r.perReel)}</b> في اليوم ≈ <b className="num">{Math.floor((r.dailyLimit * r.perReel) / 300)}</b> رحلة اقتصادية مجانية.
         </div>
       </div>
       <div className="panel-card">
@@ -213,7 +213,7 @@ export function Promos() {
           <Field label="الكود"><input className="input" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase().replace(/\s/g, '') })} placeholder="WASALNI20" dir="ltr" /></Field>
           <Field label="النوع"><select className="input" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="percent">نسبة %</option><option value="fixed">مبلغ ثابت</option></select></Field>
           <Field label="القيمة"><input className="input" type="number" value={f.value} onChange={(e) => setF({ ...f, value: e.target.value })} /></Field>
-          <Field label="أقصى خصم (د.ل)"><input className="input" type="number" value={f.max} onChange={(e) => setF({ ...f, max: e.target.value })} /></Field>
+          <Field label="أقصى خصم (دج)"><input className="input" type="number" value={f.max} onChange={(e) => setF({ ...f, max: e.target.value })} /></Field>
           <Field label="عدد الاستخدامات"><input className="input" type="number" value={f.maxUses} onChange={(e) => setF({ ...f, maxUses: e.target.value })} placeholder="غير محدود" /></Field>
           <Field label="ينتهي في"><input className="input" type="date" value={f.expires} onChange={(e) => setF({ ...f, expires: e.target.value })} /></Field>
         </div>
@@ -245,7 +245,7 @@ export function Promos() {
 export function Vouchers() {
   const { vouchers } = useData()
   const [n, setN] = useState(10)
-  const [amount, setAmount] = useState(20)
+  const [amount, setAmount] = useState(1000)
   const [busy, setBusy] = useState(false)
   const [last, setLast] = useState([])
   const gen = async () => { setBusy(true); const c = await createVouchers(Math.min(200, n), Number(amount)); setLast(c); setBusy(false); toast(`تم إنشاء ${c.length} قسيمة`, 'success') }
@@ -261,7 +261,7 @@ export function Vouchers() {
         <h3>توليد قسائم</h3>
         <div className="form-grid">
           <Field label="العدد"><input className="input" type="number" value={n} onChange={(e) => setN(+e.target.value)} /></Field>
-          <Field label="القيمة (د.ل)"><input className="input" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
+          <Field label="القيمة (دج)"><input className="input" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
         </div>
         <div className="flex mt">
           <button className="btn btn-primary btn-sm" disabled={busy} onClick={gen}>{busy ? <span className="spinner" /> : <><Plus size={16} />توليد</>}</button>

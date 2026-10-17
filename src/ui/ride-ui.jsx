@@ -6,7 +6,7 @@ import { tr, dateTime } from '@/core/util.js'
 import { watchMessages, sendMessage, watchRide } from '@/core/api.js'
 
 export function Plate({ value = '' }) {
-  return <span className="plate"><i>ليبيا<br />LBY</i><span>{value}</span></span>
+  return <span className="plate"><i>الجزائر<br />DZ</i><span>{value}</span></span>
 }
 
 export const STATUS = {
@@ -52,25 +52,25 @@ export function ChatPage({ rideId, me }) {
     setText('')
     await sendMessage(rideId, me, t)
     // رد آلي من السائق الافتراضي
-    if (me === 'rider' && ride?.driver?.simulated) setTimeout(() => sendMessage(rideId, 'driver', tr('تمام 👍 أنا قريب منك', 'OK 👍 I am close')), 1800)
+    if (me === 'rider' && ride?.driver?.simulated) setTimeout(() => sendMessage(rideId, 'driver', tr('صحا 👍 راني قريب ليك', 'OK 👍 I am close')), 1800)
   }
   const other = me === 'rider' ? ride?.driver : { name: ride?.riderName, phone: ride?.riderPhone }
   return (
     <Page
-      title={<span className="flex"><Avatar name={other?.name} size={34} />{other?.name || tr('محادثة', 'Chat')}</span>}
+      title={<span className="flex"><Avatar name={other?.name} size={34} />{other?.name || tr('دردشة', 'Chat')}</span>}
       actions={other?.phone && <a className="icon-btn sm flat" href={`tel:${other.phone}`}><Phone size={18} /></a>}
       foot={
         <div className="col" style={{ gap: 10 }}>
           <div className="hscroll">{QUICK[me].map((q) => <button key={q} className="chip" onClick={() => send(q)}>{q}</button>)}</div>
           <div className="flex">
-            <input className="input" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder={tr('اكتب رسالة…', 'Type a message…')} />
+            <input className="input" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder={tr('اكتب ميساج…', 'Type a message…')} />
             <button className="icon-btn" style={{ background: 'var(--grad)', color: '#fff' }} onClick={() => send()}><Send size={20} style={{ transform: document.dir === 'rtl' ? 'scaleX(-1)' : '' }} /></button>
           </div>
         </div>
       }
     >
       <div className="col" style={{ gap: 8, paddingTop: 8 }}>
-        <div className="center tiny muted">{tr('المحادثة مشفرة ومتاحة أثناء الرحلة فقط', 'Chat is available during the trip only')}</div>
+        <div className="center tiny muted">{tr('الدردشة محمية وكاينة غير وقت الكورسة', 'Chat is available during the trip only')}</div>
         {msgs.map((m) => (
           <div key={m.id} style={{ alignSelf: m.from === me ? 'flex-start' : 'flex-end', maxWidth: '78%' }} className="pop">
             <div style={{ padding: '10px 14px', borderRadius: 18, background: m.from === me ? 'var(--grad)' : 'var(--card)', color: m.from === me ? '#fff' : 'var(--ink)', boxShadow: 'var(--shadow-1)', border: m.from === me ? 0 : '1px solid var(--line)' }}>{m.text}</div>
