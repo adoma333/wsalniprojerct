@@ -22,40 +22,30 @@ env:
   VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
   VITE_FIREBASE_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
   VITE_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+  SURGE_DOMAIN_RAW: ${{ secrets.SURGE_DOMAIN }}
 
 jobs:
-  meta:
-    runs-on: ubuntu-latest
-    outputs:
-      domain: ${{ steps.d.outputs.domain }}
-    steps:
-      - id: d
-        env:
-          SURGE_DOMAIN: ${{ secrets.SURGE_DOMAIN }}
-        run: |
-          d="${SURGE_DOMAIN:-wasalni-${GITHUB_REPOSITORY_OWNER}.surge.sh}"
-          d="$(echo "$d" | tr '[:upper:]' '[:lower:]' | sed -e 's#^https\?://##' -e 's#/$##')"
-          echo "domain=$d" >> "$GITHUB_OUTPUT"
-          echo "🌐 $d"
-
   web:
-    needs: meta
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: رابط الموقع
+        run: |
+          d="${SURGE_DOMAIN_RAW:-wasalni-${GITHUB_REPOSITORY_OWNER}.surge.sh}"
+          d="$(echo "$d" | tr '[:upper:]' '[:lower:]' | sed -e 's#^https\?://##' -e 's#/$##' | tr -d '[:space:]')"
+          echo "DOMAIN=$d" >> "$GITHUB_ENV"
+          echo "VITE_SITE_URL=https://$d" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci --no-audit --no-fund
       - name: بناء التطبيقات الأربعة
         env:
-          VITE_SITE_URL: https://${{ needs.meta.outputs.domain }}
         run: npm run build
       - uses: actions/upload-artifact@v4
         with: { name: site, path: dist/site, retention-days: 7 }
 
   android:
-    needs: meta
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
@@ -74,6 +64,12 @@ jobs:
             color: '#18120E'
     steps:
       - uses: actions/checkout@v4
+      - name: رابط الموقع
+        run: |
+          d="${SURGE_DOMAIN_RAW:-wasalni-${GITHUB_REPOSITORY_OWNER}.surge.sh}"
+          d="$(echo "$d" | tr '[:upper:]' '[:lower:]' | sed -e 's#^https\?://##' -e 's#/$##' | tr -d '[:space:]')"
+          echo "DOMAIN=$d" >> "$GITHUB_ENV"
+          echo "VITE_SITE_URL=https://$d" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - uses: actions/setup-java@v4
@@ -82,7 +78,6 @@ jobs:
       - name: بناء واجهة ${{ matrix.app }}
         env:
           APP: ${{ matrix.app }}
-          VITE_SITE_URL: https://${{ needs.meta.outputs.domain }}
         run: npx vite build
       - name: مشروع أندرويد (Capacitor)
         run: |
@@ -157,12 +152,11 @@ jobs:
           retention-days: 14
 
   deploy:
-    needs: [meta, web, android]
+    needs: [web, android]
     if: always() && needs.web.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      DOMAIN: ${{ needs.meta.outputs.domain }}
       SURGE_TOKEN: ${{ secrets.SURGE_TOKEN }}
       SURGE_LOGIN: ${{ secrets.SURGE_LOGIN }}
       TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -171,6 +165,12 @@ jobs:
       FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - name: رابط الموقع
+        run: |
+          d="${SURGE_DOMAIN_RAW:-wasalni-${GITHUB_REPOSITORY_OWNER}.surge.sh}"
+          d="$(echo "$d" | tr '[:upper:]' '[:lower:]' | sed -e 's#^https\?://##' -e 's#/$##' | tr -d '[:space:]')"
+          echo "DOMAIN=$d" >> "$GITHUB_ENV"
+          echo "VITE_SITE_URL=https://$d" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v4
         with: { name: site, path: site }
       - uses: actions/download-artifact@v4
@@ -181,7 +181,10 @@ jobs:
         run: |
           ls -la site site/downloads || true
           if [ -z "$SURGE_TOKEN" ]; then echo "⚠ SURGE_TOKEN غير موجود — شغّل أمر الإعداد على السيرفر"; echo "ok=0" >> "$GITHUB_OUTPUT"; exit 0; fi
-          npx --yes surge@0.44.6 ./site "$DOMAIN" --token "$SURGE_TOKEN" && echo "ok=1" >> "$GITHUB_OUTPUT"
+          [ -n "$DOMAIN" ] || { echo "رابط الموقع فارغ"; exit 1; }
+          echo "النشر إلى https://$DOMAIN"
+          npx --yes surge@0.44.6 ./site "$DOMAIN" --token "$SURGE_TOKEN"
+          echo "ok=1" >> "$GITHUB_OUTPUT"
       - name: قواعد Firestore
         if: env.FIREBASE_TOKEN != '' && env.FIREBASE_PROJECT_ID != ''
         continue-on-error: true
