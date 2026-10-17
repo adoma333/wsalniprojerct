@@ -24,7 +24,7 @@ jobs:
       - name: الفحص
         run: |
           d="${SURGE_DOMAIN_RAW:-wsalni.surge.sh}"
-          node scripts/live-check.mjs "https://$(echo $d | tr -d '[:space:]')"
+          DUMP=1 node scripts/live-check.mjs "https://$(echo $d | tr -d '[:space:]')"
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: live-check, path: shots, retention-days: 3 }

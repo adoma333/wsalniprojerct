@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs'
 const base = process.argv[2]
 mkdirSync('shots', { recursive: true })
 const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] })
-const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, geolocation: { latitude: 35.1899, longitude: -0.6309 }, permissions: ['geolocation'] })
+const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, geolocation: { latitude: 35.1899, longitude: -0.6309 }, permissions: ['geolocation'] })
 
 async function visit(path, name, prep) {
   const p = await ctx.newPage()
@@ -24,6 +24,10 @@ async function visit(path, name, prep) {
   })
   log('MAP', JSON.stringify(info))
   await p.screenshot({ path: `shots/${name}.png` })
+  if (process.env.DUMP) {
+    const jpg = (await p.screenshot({ type: 'jpeg', quality: 45, scale: 'css' })).toString('base64')
+    for (let i = 0; i < jpg.length; i += 3000) console.log(`IMG:${name}:${jpg.slice(i, i + 3000)}`)
+  }
   return p
 }
 
