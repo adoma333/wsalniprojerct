@@ -33,14 +33,14 @@ export function virtualDriver(cls = 'eco') {
 // سيارات حول نقطة، تتحرك بشكل عشوائي ناعم
 export function spawnCars(center, n = 9) {
   return Array.from({ length: n }, (_, i) => {
-    const a = Math.random() * Math.PI * 2, d = 0.3 + Math.random() * 2.2
+    const a = Math.random() * Math.PI * 2, d = 0.12 + Math.random() * 0.9
     return { id: 'v' + i, pos: offsetPoint(center, Math.cos(a) * d, Math.sin(a) * d), heading: Math.random() * 360, speed: 0.004 + Math.random() * 0.006, cls: pick(['eco', 'eco', 'comfort', 'family', 'vip']) }
   })
 }
 export function stepCars(cars, center) {
   return cars.map((c) => {
     let h = c.heading + (Math.random() - 0.5) * 18
-    if (haversine(c.pos, center) > 2.8) h = (Math.atan2(center[0] - c.pos[0], center[1] - c.pos[1]) * 180) / Math.PI
+    if (haversine(c.pos, center) > 1.3) h = (Math.atan2(center[0] - c.pos[0], center[1] - c.pos[1]) * 180) / Math.PI
     const rad = (h * Math.PI) / 180
     return { ...c, heading: (h + 360) % 360, pos: offsetPoint(c.pos, Math.cos(rad) * c.speed * 4, Math.sin(rad) * c.speed * 4) }
   })
