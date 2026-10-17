@@ -74,13 +74,20 @@ ensure_node() {
 
 # ---------- 1) GitHub ----------
 echo; echo -e "${B}【1/5】 GitHub${N}"
-if [ -z "${GH_TOKEN:-}" ] || ! GH_TOKEN="$GH_TOKEN" "$GH" api "repos/$REPO" >/dev/null 2>&1; then
+# التوكن يجب أن يصل للمستودع ويستطيع كتابة الأسرار (بدونها لا يُنشر الموقع ولا تصل ملفات تلجرام)
+gh_ok() {
+  GH_TOKEN="$1" "$GH" api "repos/$REPO" >/dev/null 2>&1 || { warn "التوكن لا يصل إلى $REPO"; return 1; }
+  printf 'ok' | GH_TOKEN="$1" "$GH" secret set WASALNI_CHECK -R "$REPO" >/dev/null 2>&1 || { warn "التوكن لا يملك صلاحية Secrets: Read and write"; return 1; }
+  GH_TOKEN="$1" "$GH" secret delete WASALNI_CHECK -R "$REPO" >/dev/null 2>&1 || true
+}
+if [ -z "${GH_TOKEN:-}" ] || ! gh_ok "$GH_TOKEN"; then
   echo -e "${D}أنشئ توكن من: https://github.com/settings/personal-access-tokens/new"
-  echo -e "Repository access: ${REPO} فقط • Permissions: Secrets (Read & write) + Actions (Read & write) + Contents (Read)${N}"
+  echo -e "Repository access: Only select repositories ← ${REPO}"
+  echo -e "Repository permissions: ${N}${B}Secrets = Read and write${N}${D} • Actions = Read and write • Contents = Read-only${N}"
+  echo -e "${D}(أو توكن Classic بصلاحية repo + workflow)${N}"
   while :; do
     T=$(asks "الصق توكن GitHub:")
-    GH_TOKEN="$T" "$GH" api "repos/$REPO" >/dev/null 2>&1 && break
-    warn "التوكن لا يصل إلى $REPO، حاول مجددًا"
+    gh_ok "$T" && break
   done
   save GH_TOKEN "$T"
 fi
@@ -204,6 +211,10 @@ if [ -n "${FB_API_KEY:-}" ]; then
   secret FIREBASE_STORAGE_BUCKET "${FB_BUCKET:-}"; secret FIREBASE_SENDER_ID "${FB_SENDER:-}"; secret FIREBASE_APP_ID "${FB_APP_ID:-}"
   [ -n "${FB_TOKEN:-}" ] && secret FIREBASE_TOKEN "$FB_TOKEN"
 fi
+
+HAVE=$("$GH" secret list -R "$REPO" 2>/dev/null)
+for k in SURGE_TOKEN TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do echo "$HAVE" | grep -q "^$k" || die "لم يُحفظ $k في GitHub — تحقق من صلاحية Secrets في التوكن ثم أعد تشغيل الأمر"; done
+ok "تم التحقق من حفظ الأسرار في GitHub"
 
 say "تشغيل البناء على خوادم GitHub…"
 "$GH" workflow run build.yml -R "$REPO" --ref "$BRANCH" >/dev/null 2>&1 && ok "بدأ البناء (10–15 دقيقة)" || warn "شغّله يدويًا: Actions ← Wasalni Build & Deploy ← Run workflow"
