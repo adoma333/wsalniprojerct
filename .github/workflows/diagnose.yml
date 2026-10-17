@@ -1,0 +1,30 @@
+name: Wasalni Live Check
+# فحص الموقع المنشور في متصفح حقيقي: أخطاء الكونسول، الطلبات الفاشلة، ولقطات شاشة
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/diagnose.yml', 'scripts/live-check.mjs']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SURGE_DOMAIN_RAW: ${{ secrets.SURGE_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: |
+          npm i --no-save playwright@1.56.1 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+      - name: الفحص
+        run: |
+          d="${SURGE_DOMAIN_RAW:-wsalni.surge.sh}"
+          node scripts/live-check.mjs "https://$(echo $d | tr -d '[:space:]')"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: live-check, path: shots, retention-days: 3 }
