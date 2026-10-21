@@ -132,6 +132,30 @@ export async function redeemVoucher(uid, code) {
   if (r.ok) await addTx(uid, { kind: 'topup', amount: r.amount, currency: 'wallet', title: `شحن رصيد بقسيمة ${code}` }).catch(() => {})
   return r
 }
+// ===== الشحن (الذهبية / CIB / بريدي موب) =====
+// في الوضع التجريبي يُشحن الرصيد مباشرة، وإلا يبقى الطلب "قيد المراجعة" حتى يوافق الأدمن
+export async function topUp(uid, { amount, method, last4 = '', receipt = '', ref = '' }, payments) {
+  amount = Math.round(Number(amount) || 0)
+  const instant = payments.demo && method !== 'baridimob'
+  const id = 'T' + Date.now().toString(36).toUpperCase() + shortId(3)
+  await store.tx(async (t) => {
+    t.set(`topups/${id}`, { uid, amount, method, last4, receipt, ref, status: instant ? 'paid' : 'pending', demo: !!payments.demo, at: Date.now() })
+    if (instant) t.update(`users/${uid}`, { wallet: store.inc(amount), lastTopup: id, updatedAt: Date.now() })
+  })
+  if (instant) await addTx(uid, { kind: 'topup', amount, currency: 'wallet', title: `شحن ${METHOD_NAMES[method] || method}${last4 ? ' •••• ' + last4 : ''}` }).catch(() => {})
+  return { id, status: instant ? 'paid' : 'pending', amount }
+}
+export const METHOD_NAMES = { edahabia: 'الذهبية', cib: 'CIB', baridimob: 'بريدي موب', voucher: 'كارطة شحن' }
+export const watchTopups = (cb) => store.watchList('topups', { orderBy: ['at', 'desc'], limit: 300 }, cb)
+export const watchMyTopups = (uid, cb) => store.watchList('topups', { where: [['uid', '==', uid]] }, (t) => cb(t.sort((a, b) => b.at - a.at)))
+export async function reviewTopup(t, approve, note = '') {
+  await store.update(`topups/${t.id}`, { status: approve ? 'paid' : 'rejected', reviewedAt: Date.now(), note })
+  if (approve) {
+    await store.update(`users/${t.uid}`, { wallet: store.inc(t.amount), updatedAt: Date.now() })
+    await addTx(t.uid, { kind: 'topup', amount: t.amount, currency: 'wallet', title: `شحن ${METHOD_NAMES[t.method] || t.method}` }).catch(() => {})
+  }
+}
+
 export const watchVouchers = (cb) => store.watchList('vouchers', { orderBy: ['createdAt', 'desc'], limit: 300 }, cb)
 export async function createVouchers(n, amount) {
   const codes = []

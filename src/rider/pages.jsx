@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import {
   MapPin, Wallet as WalletIco, Ticket, Copy, Share2, User, Mail, Phone, Lock, MapIcon, LogOut, UserX, Languages, CheckCircle2, XCircle, Users,
-  Home as HomeIco, Briefcase, Star, Plus, Trash2, Camera, Gift, Car, CalendarClock, ArrowDownLeft, ArrowUpRight, Receipt, Sparkles, Settings as SetIco, CreditCard,
+  Home as HomeIco, Briefcase, Star, Plus, Trash2, Camera, Gift, Car, CalendarClock, ArrowDownLeft, ArrowUpRight, Receipt, Sparkles, Settings as SetIco, CreditCard, Clock,
 } from 'lucide-react'
 import { Page, Empty, Row, Sheet, toast, Avatar, Stars, useNav } from '@/ui/kit.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
@@ -9,7 +9,7 @@ import { ClassCar, Coin } from '@/ui/art.jsx'
 import { StatusBadge, RouteSummary, Plate, ChatPage } from '@/ui/ride-ui.jsx'
 import { tr, money, num, dateTime, km, mins, copy, shareLink, compressImage, isAr, LANG } from '@/core/util.js'
 import { CITIES, SITE_URL } from '@/core/config.js'
-import { watchRiderRides, watchTx, redeemVoucher, checkPromo, updateUser, deleteAccount, cancelRide, store } from '@/core/api.js'
+import { watchMyTopups, METHOD_NAMES, watchRiderRides, watchTx, redeemVoucher, checkPromo, updateUser, deleteAccount, cancelRide, store } from '@/core/api.js'
 import { searchPlaces } from '@/core/geo.js'
 import { levelOf } from './Rewards.jsx'
 export { Notifications, Support, Settings, About } from '@/ui/common-pages.jsx'
@@ -111,6 +111,8 @@ export function Wallet() {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   useEffect(() => watchTx(uid, setTx), [uid])
+  const [tops, setTops] = useState([])
+  useEffect(() => watchMyTopups(uid, (t) => setTops(t.filter((x) => x.status !== 'paid').slice(0, 5))), [uid])
   const redeem = async () => {
     setBusy(true)
     try {
@@ -131,9 +133,23 @@ export function Wallet() {
         </div>
       </div>
       <div className="grid2 mt">
-        <button className="btn btn-primary" onClick={() => setOpen(true)}><Plus size={18} />{tr('اشحن بكارطة', 'Top up')}</button>
+        <button className="btn btn-primary" onClick={() => nav.push('topup')}><Plus size={18} />{tr('اشحن', 'Top up')}</button>
         <button className="btn btn-ghost" onClick={() => nav.push('rewards')}><Coin size={18} />{tr('اربح نقاط', 'Earn points')}</button>
       </div>
+      {tops.length > 0 && (
+        <>
+          <div className="section-title">{tr('طلبات الشحن', 'Top-up requests')}</div>
+          <div className="list">
+            {tops.map((t) => (
+              <div key={t.id} className="tx">
+                <span className="txi" style={{ background: t.status === 'rejected' ? 'var(--danger-bg)' : 'var(--warning-bg)', color: t.status === 'rejected' ? 'var(--danger)' : '#b7791f' }}><Clock size={18} /></span>
+                <div className="txb"><b>{METHOD_NAMES[t.method]} • <span className="num">{money(t.amount)}</span></b><small>{dateTime(t.at)}</small></div>
+                <span className={`badge ${t.status === 'rejected' ? 'red' : 'yellow'}`}>{t.status === 'rejected' ? tr('مرفوض', 'Rejected') : tr('قيد المراجعة', 'Pending')}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
       <div className="section-title">{tr('طرق الخلاص', 'Payment methods')}</div>
       <div className="list">
         <Row icon={<CreditCard size={19} />} color="#12B76A" title={tr('كاش', 'Cash')} sub={tr('خلّص الشيفور مباشرة', 'Pay the driver directly')} right={<CheckCircle2 size={20} color="var(--success)" />} chevron={false} />

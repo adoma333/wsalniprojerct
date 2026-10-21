@@ -10,10 +10,11 @@ import Home from './Home.jsx'
 import SearchPage from './Search.jsx'
 import Reels from './Reels.jsx'
 import Rewards from './Rewards.jsx'
+import TopUp from './TopUp.jsx'
 import * as P from './pages.jsx'
 
 const PAGES = {
-  search: SearchPage, reels: Reels, rewards: Rewards, trips: P.Trips, trip: P.TripDetail, wallet: P.Wallet, promo: P.Promo,
+  search: SearchPage, reels: Reels, rewards: Rewards, topup: TopUp, trips: P.Trips, trip: P.TripDetail, wallet: P.Wallet, promo: P.Promo,
   notifications: P.Notifications, invite: P.Invite, support: P.Support, profile: P.Profile, edit: P.EditProfile, settings: P.Settings,
   places: P.Places, scheduled: P.Scheduled, about: P.About, chat: P.ChatPage,
 }

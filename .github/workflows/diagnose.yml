@@ -33,6 +33,7 @@ jobs:
       - name: فحص الخريطة من الكود الحالي
         run: |
           npm ci --no-audit --no-fund >/dev/null
+          npm i --no-save playwright@1.56.1 >/dev/null
           npm run build >/dev/null
           (npx --yes serve@14 -l 5055 dist/site >/dev/null 2>&1 &)
           sleep 4
