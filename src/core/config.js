@@ -60,15 +60,37 @@ export const DEFAULT_SETTINGS = {
     cancelFee: 100,
     roundTo: 10,
   },
+  // النقاط: المستخدم يرى نقاطًا فقط؛ قيمتها بالدينار يحددها الأدمن ويمكن تعديلها دون أن يلاحظ المستخدم
   rewards: {
-    perReel: 5,
+    pointsPerReel: 100,
+    pointValue: 5, // كم دينار تساوي كل 100 نقطة
     watchSeconds: 15,
     dailyLimit: 60,
     builtinReels: true,
-    referralBonus: 100,
+    autoConvert: false, // تحويل تلقائي للبورتفاي عند بلوغ الحد
+    autoConvertAt: 2000,
+    minConvert: 500,
+    referralBonus: 1000,
   },
+  // خصم الطلبة بعد التحقق من بطاقة الطالب
+  students: { enabled: true, discount: 30, maxDiscount: 300, autoVerify: true },
+  // التحقق من الهوية والوثائق
+  kyc: { autoVerify: true },
+  // طرق الشحن
+  payments: { demo: true, edahabia: true, cib: true, baridimob: true, voucher: true, rip: '00799999 0000000000 00', ripName: 'SARL WASALNI', presets: [500, 1000, 2000, 5000], min: 200, max: 50000 },
+  // الميزات (تشغيل/إيقاف من الأدمن)
+  features: { reels: true, delivery: true, schedule: true, offerPrice: true, womenDrivers: true, tripPin: true, rideForOther: true, students: true },
+  // إعدادات كل ولاية: تفعيل، معامل سعر، زيادة مؤقتة
+  zones: {},
+  extraCities: [],
+  maintenance: { on: false, message: 'التطبيق في صيانة، نرجعو قريب 🙏' },
+  minVersion: '1.0',
   fleetSimulation: true,
   autoApproveDrivers: true,
   support: { phone: '+213550000000', whatsapp: '213550000000', email: 'contwais@gmail.com' },
   announcement: '',
 }
+
+// تحويل النقاط ↔ الدينار
+export const pointsToDa = (pts, rw) => Math.floor(((pts || 0) * (rw?.pointValue ?? 5)) / 100 * 100) / 100
+export const daToPoints = (da, rw) => Math.ceil(((da || 0) * 100) / (rw?.pointValue || 5))

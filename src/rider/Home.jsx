@@ -5,12 +5,14 @@ import {
   Sparkles, Zap, StickyNote, Navigation, Info,
 } from 'lucide-react'
 import MapView from '@/map/MapView.jsx'
+import MapControls, { useMapPrefs } from '@/map/MapControls.jsx'
+import DragPanel from '@/ui/DragPanel.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
 import { useNav, Drawer, DrawerItem, Avatar, Sheet, Stars, toast, Confetti } from '@/ui/kit.jsx'
 import { ClassCar, Coin } from '@/ui/art.jsx'
 import { Plate, RouteSummary } from '@/ui/ride-ui.jsx'
-import { tr, isAr, money, mins, km, haversine, greeting, shareLink, haptic, timeAgo } from '@/core/util.js'
-import { CITIES, SITE_URL } from '@/core/config.js'
+import { tr, isAr, money, num, mins, km, haversine, greeting, shareLink, haptic, timeAgo } from '@/core/util.js'
+import { CITIES, SITE_URL, daToPoints } from '@/core/config.js'
 import { currentPosition, reverse, route, weather } from '@/core/geo.js'
 import { quote, demandFactor } from '@/core/pricing.js'
 import { spawnCars, stepCars, runSimulation } from '@/core/fleet.js'
@@ -34,7 +36,8 @@ export default function Home() {
   const [pick, setPick] = useState(null) // {target, label, coords, moving}
   const [panelH, setPanelH] = useState(260)
   const [drawer, setDrawer] = useState(false)
-  const [sat, setSat] = useState(false)
+  const prefs = useMapPrefs()
+  const [brg, setBrg] = useState({ b: 0, p: 0 })
   const [wx, setWx] = useState(null)
   const [notifDot, setNotifDot] = useState(false)
 
@@ -90,13 +93,6 @@ export default function Home() {
     prevStatus.current = s
   }, [ride?.status])
 
-  // ارتفاع اللوحة → حشوة الخريطة
-  useEffect(() => {
-    if (!panelRef.current) return
-    const ro = new ResizeObserver(() => setPanelH(panelRef.current?.offsetHeight || 0))
-    ro.observe(panelRef.current)
-    return () => ro.disconnect()
-  })
 
   const allCars = [
     ...real.filter((d) => d.loc?.coords).map((d) => ({ id: 'd-' + d.id, type: 'car', coords: d.loc.coords, heading: d.loc.heading || 0 })),
@@ -196,7 +192,7 @@ export default function Home() {
     if (['ongoing', 'completed'].includes(stage) || stage === 'accepted') markers.push({ id: 'do', type: 'drop', coords: ride.dropoff.coords, label: ride.dropoff.title })
     if (ride.driverLoc?.coords && stage !== 'searching') markers.push({ id: 'drv', type: 'car', coords: ride.driverLoc.coords, heading: ride.driverLoc.heading || 0, size: 50 })
     if (stage === 'searching') markers.push(...allCars)
-    if (stage === 'accepted' && approach) routes.push({ id: 'appr', coords: approach.coords, dashed: true, color: isDarkMode() ? '#fff' : '#18120e' })
+    if (stage === 'accepted' && approach) routes.push({ id: 'appr', coords: approach.coords, dashed: true })
     if (['accepted', 'ongoing'].includes(stage) && ride.route?.coords) routes.push({ id: 'trip', coords: ride.route.coords })
   }
 
@@ -204,7 +200,7 @@ export default function Home() {
 
   return (
     <div className="home">
-      <MapView ref={mapRef} center={base} zoom={14.5} markers={markers} routes={routes} satellite={sat} onMoveStart={() => pick && setPick((p) => ({ ...p, moving: true }))} onMoveEnd={onMoveEnd} padding={{ bottom: panelH }} />
+      <MapView ref={mapRef} center={base} zoom={15} markers={markers} routes={routes} mapType={prefs.mapType} pitch3d={prefs.pitch3d} onBearing={(b, p) => setBrg({ b, p })} onMoveStart={() => pick && setPick((p) => ({ ...p, moving: true }))} onMoveEnd={onMoveEnd} padding={{ bottom: panelH, top: 70 }} />
       {stage === 'searching' && <div className="radar" style={{ top: `calc((100% - ${panelH}px) / 2)` }}><span /><span /><span /></div>}
       {stage === 'pick' && (
         <div className={`center-pin ${pick.moving ? 'lift' : ''}`} style={{ top: `calc((100% - ${panelH}px) / 2)` }}>
@@ -225,7 +221,7 @@ export default function Home() {
         {(stage === 'idle') && (
           <button className="points-pill rise" onClick={() => nav.push('rewards')}>
             <span className="coin"><Coin size={20} /></span>
-            <span className="num">{money(user.points || 0)}</span>
+            <span className="num">{num(user.points || 0)}</span><small style={{ fontWeight: 500, color: 'var(--muted)', fontSize: 12 }}>{tr('نقطة', 'pts')}</small>
           </button>
         )}
       </div>
@@ -235,20 +231,16 @@ export default function Home() {
         </div>
       )}
 
-      <div className="float-ctrls" style={{ bottom: ctrlBottom }}>
-        <button className="icon-btn sm" onClick={() => setSat(!sat)} aria-label="layers" style={sat ? { background: 'var(--ink)', color: 'var(--bg)' } : null}><Layers size={19} /></button>
-        <button className="icon-btn sm" onClick={() => locate(true)} aria-label="locate"><Crosshair size={19} /></button>
-      </div>
+      <MapControls prefs={prefs} bearing={brg.b} pitch={brg.p} onNorth={() => mapRef.current?.resetNorth()} onLocate={() => locate(true)} bottom={ctrlBottom} />
 
-      <div className="panel" ref={panelRef} key={stage}>
-        <div className="grabber" />
+      <DragPanel key={stage} resetKey={stage} peek={stage === 'idle' ? 150 : 128} onVisible={setPanelH}>
         {stage === 'idle' && <IdlePanel user={user} wx={wx} onSearch={openSearch} onPlace={quickPlace} rides={rides} nav={nav} settings={settings} />}
         {stage === 'pick' && <PickPanel pick={pick} onConfirm={confirmPick} onCancel={() => { setPick(null); openSearch(pick.target) }} />}
         {stage === 'choose' && <ChoosePanel draft={draft} rt={rt} user={user} settings={settings} uid={uid} eta={nearestEta(draft.pickup.coords)} carsN={allCars.length} onEdit={() => openSearch('dropoff')} onBooked={() => setDraft(null)} />}
         {stage === 'searching' && <SearchingPanel ride={ride} settings={settings} />}
         {['accepted', 'arrived', 'ongoing'].includes(stage) && <TripPanel ride={ride} approach={approach} nav={nav} uid={uid} user={user} />}
         {stage === 'completed' && <RatePanel ride={ride} />}
-      </div>
+      </DragPanel>
 
       <RiderDrawer open={drawer} onClose={() => setDrawer(false)} user={user} nav={nav} notifDot={notifDot} />
     </div>
@@ -266,7 +258,7 @@ function IdlePanel({ user, wx, onSearch, onPlace, rides, nav, settings }) {
     seen.add(r.dropoff.title); recent.push(r.dropoff)
     if (recent.length >= 3) break
   }
-  const target = 300
+  const target = daToPoints(Math.max(settings.pricing.classes[0]?.min || 200, 300), settings.rewards)
   const pct = Math.min(100, ((user.points || 0) / target) * 100)
   return (
     <div className="rise">
@@ -300,13 +292,13 @@ function IdlePanel({ user, wx, onSearch, onPlace, rides, nav, settings }) {
         <button onClick={() => onSearch('dropoff')}><span className="qi"><ClassCar type="eco" w={52} /></span>{tr('كورسة', 'Ride')}</button>
         <button onClick={() => onSearch('dropoff', { classId: 'moto' })}><span className="qi"><ClassCar type="moto" w={52} /></span>{tr('توصيل', 'Delivery')}</button>
         <button onClick={() => onSearch('dropoff', { schedule: true })}><span className="qi"><CalendarClock size={28} color="var(--brand)" /></span>{tr('برمج', 'Schedule')}</button>
-        <button onClick={() => nav.push('reels')}><span className="qi" style={{ background: 'var(--grad)', color: '#fff' }}><Gift size={28} /><span className="new num">+{settings.rewards.perReel}</span></span>{tr('اربح', 'Earn')}</button>
+        <button onClick={() => nav.push('reels')}><span className="qi" style={{ background: 'var(--grad)', color: '#fff' }}><Gift size={28} /><span className="new num">+{settings.rewards.pointsPerReel}</span></span>{tr('اربح', 'Earn')}</button>
       </div>
       <button className="reward-banner" onClick={() => nav.push('reels')}>
         <span className="rb-ico"><Sparkles size={26} /></span>
         <span style={{ flex: 1, position: 'relative', zIndex: 1 }}>
           <b>{pct >= 100 ? tr('الكورسة البلاش تاعك واجدة! 🎉', 'Your free ride is ready! 🎉') : tr('اركب بلاش كي تشوف الريلز', 'Ride free by watching reels')}</b>
-          <small>{tr(`كل إشهار مكتمل = ${settings.rewards.perReel} دينار • رصيدك ${money(user.points || 0)}`, `Each reel = ${settings.rewards.perReel} DA • Balance ${money(user.points || 0)}`)}</small>
+          <small>{tr(`كل إشهار كامل = ${settings.rewards.pointsPerReel} نقطة • عندك ${num(user.points || 0)} نقطة`, `Each ad = ${settings.rewards.pointsPerReel} pts • You have ${num(user.points || 0)}`)}</small>
           <span className="rb-bar"><i style={{ width: pct + '%' }} /></span>
         </span>
       </button>
@@ -350,7 +342,7 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
   const points = user.points || 0, wallet = user.wallet || 0
   useEffect(() => {
     if (!q) return
-    if (pay === 'points' && points < q.total) setPay('cash')
+    if (pay === 'points' && points < daToPoints(q.total, settings.rewards)) setPay('cash')
     if (pay === 'wallet' && wallet < q.total) setPay('cash')
   }, [q?.total])
 
@@ -363,7 +355,7 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
         riderId: uid, riderName: user.name, riderPhone: user.phone, riderRating: user.rating || 5, city: user.city,
         pickup: strip(draft.pickup), dropoff: strip(draft.dropoff), stops: (draft.stops || []).map(strip),
         route: { coords: rt.coords, distanceKm: +rt.distanceKm.toFixed(2), durationMin: +rt.durationMin.toFixed(1) },
-        classId: cls, className: c.ar, fare: q, payment: pay, promoCode: promo?.code || '', note, scheduledAt: when ? new Date(when).getTime() : null,
+        classId: cls, className: c.ar, fare: q, payment: pay, pointsCost: pay === 'points' ? daToPoints(q.total, settings.rewards) : 0, promoCode: promo?.code || '', note, scheduledAt: when ? new Date(when).getTime() : null,
       })
       if (promo) store.set(`promos/${promo.code}`, { used: store.inc(1) }, true).catch(() => {})
       haptic('medium')
@@ -393,7 +385,7 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
       <div className="cls-list">
         {pricing.classes.map((c) => {
           const qq = quotes[c.id]
-          const free = qq && points >= qq.total
+          const free = qq && points >= daToPoints(qq.total, settings.rewards)
           return (
             <button key={c.id} className={`cls ${cls === c.id ? 'active' : ''}`} onClick={() => { setCls(c.id); haptic() }}>
               {free && <span className="free">{tr('بلاش بنقاطك', 'Free with points')}</span>}
@@ -410,9 +402,9 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
       <div className="pay-row">
         <button className={pay === 'cash' ? 'active' : ''} onClick={() => setPay('cash')}><Banknote size={17} color="var(--success)" />{tr('كاش', 'Cash')}</button>
         <button className={pay === 'wallet' ? 'active' : ''} disabled={!q || wallet < q.total} onClick={() => setPay('wallet')}><Wallet size={17} color="var(--info)" /><span className="num">{money(wallet)}</span></button>
-        <button className={pay === 'points' ? 'active' : ''} disabled={!q || points < q.total} onClick={() => setPay('points')}><Coin size={17} /><span className="num">{money(points)}</span></button>
+        <button className={pay === 'points' ? 'active' : ''} disabled={!q || points < daToPoints(q.total, settings.rewards)} onClick={() => setPay('points')}><Coin size={17} /><span className="num">{num(points)}</span></button>
       </div>
-      {q && points < q.total && <div className="tiny muted center" style={{ marginTop: -4, marginBottom: 8 }}>{tr(`تحتاج ${money(q.total - points)} إضافية من الريلز لتكون الكورسة بلاش`, `${money(q.total - points)} more from reels for a free ride`)}</div>}
+      {q && points < daToPoints(q.total, settings.rewards) && <div className="tiny muted center" style={{ marginTop: -4, marginBottom: 8 }}>{tr(`باقيلك ${num(daToPoints(q.total, settings.rewards) - points)} نقطة باش تولي الكورسة بلاش`, `${num(daToPoints(q.total, settings.rewards) - points)} more points for a free ride`)}</div>}
       <div className="hscroll" style={{ marginBottom: 12 }}>
         <button className={`chip ${promo ? 'brand' : ''}`} onClick={() => setPromoOpen(true)}><Ticket size={15} />{promo ? promo.code : tr('كود تخفيض', 'Promo')}</button>
         <button className={`chip ${note ? 'brand' : ''}`} onClick={() => setNoteOpen(true)}><StickyNote size={15} />{note ? tr('ملاحظة ✓', 'Note ✓') : tr('ملاحظة للشيفور', 'Note')}</button>
@@ -604,7 +596,7 @@ function RiderDrawer({ open, onClose, user, nav, notifDot }) {
             <div className="small" style={{ opacity: 0.9 }}><span className="num">{user.phone}</span></div>
             <div className="flex tiny" style={{ marginTop: 6, gap: 6 }}>
               <span className="badge" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}><Wallet size={11} /><span className="num">{money(user.wallet || 0)}</span></span>
-              <span className="badge" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}><Coin size={11} /><span className="num">{money(user.points || 0)}</span></span>
+              <span className="badge" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}><Coin size={11} /><span className="num">{num(user.points || 0)}</span></span>
             </div>
           </div>
         </button>

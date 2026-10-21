@@ -29,7 +29,14 @@ jobs:
       - name: الفحص
         run: |
           d="${SURGE_DOMAIN_RAW:-wsalni.surge.sh}"
-          DUMP=1 node scripts/live-check.mjs "https://$(echo $d | tr -d '[:space:]')"
+          ONLY=live node scripts/live-check.mjs "https://$(echo $d | tr -d '[:space:]')"
+      - name: فحص الخريطة من الكود الحالي
+        run: |
+          npm ci --no-audit --no-fund >/dev/null
+          npm run build >/dev/null
+          (npx --yes serve@14 -l 5055 dist/site >/dev/null 2>&1 &)
+          sleep 4
+          ONLY=map DUMP=1 node scripts/live-check.mjs "http://localhost:5055"
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: live-check, path: shots, retention-days: 3 }

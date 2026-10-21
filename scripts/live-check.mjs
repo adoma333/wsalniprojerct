@@ -31,12 +31,21 @@ async function visit(path, name, prep) {
   return p
 }
 
-await visit('/', 'landing')
-await visit('/app/', 'rider', async (p) => {
-  await p.evaluate(() => localStorage.setItem('w_onb', '1'))
+const only = process.env.ONLY
+const reg = async (p, extra = {}) => {
+  await p.evaluate((x) => { localStorage.setItem('w_onb', '1'); for (const [k, v] of Object.entries(x)) localStorage.setItem(k, v) }, extra)
   await p.reload(); await p.waitForTimeout(2000)
   const n = await p.$('input[autocomplete=name]')
   if (n) { await n.fill('Test'); await p.fill('input[autocomplete=tel]', '550123456'); await p.click('.auth-card .btn-primary') }
-})
-await visit('/admin/', 'admin')
+}
+if (!only || only === 'live') {
+  await visit('/', 'landing')
+  await visit('/app/', 'rider', (p) => reg(p))
+  await visit('/admin/', 'admin')
+}
+if (only === 'map') {
+  await visit('/app/', 'std', (p) => reg(p, { w_maptype: 'standard', w_3d: '0' }))
+  await visit('/app/', 'm3d', (p) => reg(p, { w_maptype: 'standard', w_3d: '1' }))
+  await visit('/app/', 'dark', (p) => reg(p, { w_maptype: 'dark', w_3d: '0' }))
+}
 await b.close()

@@ -33,10 +33,8 @@ export function builtinReels(rw) {
       image: 'reels/ad.jpg',
       music: MUSIC[i % MUSIC.length],
       duration: rw?.watchSeconds || 15,
-      reward: rw?.perReel ?? 5,
-      baseLikes: Math.floor(800 + r() * 24000),
-      baseComments: Math.floor(20 + r() * 900),
-      baseShares: Math.floor(10 + r() * 600),
+      points: rw?.pointsPerReel ?? 100,
+      views: Math.floor(2000 + r() * 90000),
       order: i,
       active: true,
     })

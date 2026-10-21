@@ -1,171 +1,146 @@
-// خريطة MapLibre بنمط مخصص للهوية (فاتح/داكن)، أسماء عربية، مبانٍ ثلاثية الأبعاد، قمر صناعي، سيارات متحركة بسلاسة ومسارات.
+// خريطة MapLibre عالية الجودة: نمط مخصص (فاتح/ليلي/قمر صناعي)، ثلاثي الأبعاد، دوران وإمالة، مسارات متحركة، سيارات بحركة وانعطاف ناعمين.
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { isAr, isDark } from '@/core/util.js'
+import { isDark } from '@/core/util.js'
 import { carSvg } from '@/ui/kit.jsx'
-
-const STYLE = 'https://tiles.openfreemap.org/styles/positron'
-const FALLBACK = {
-  version: 8,
-  glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
-  sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap' } },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-}
+import { buildStyle } from './style.js'
 
 let rtlSet = false
 function ensureRTL() {
   if (rtlSet) return
   rtlSet = true
-  try { maplibregl.setRTLTextPlugin(new URL('rtl-text.js', location.href).href, true) } catch {}
+  try { maplibregl.setRTLTextPlugin(new URL('rtl-text.js', location.href).href, true)?.catch?.(() => {}) } catch {}
 }
 
-const PALETTE = {
-  light: { bg: '#f2eee9', water: '#c9e0ec', green: '#dfead3', building: '#e6e0da', b3d: '#e9e3dd', road: '#ffffff', roadMinor: '#fbf9f7', casing: '#e2dbd4', major: '#fff3e6', majorCase: '#f3cfa9', text: '#4a423c', halo: '#ffffff', rail: '#d8d1ca' },
-  dark: { bg: '#141110', water: '#0f1d27', green: '#17201a', building: '#1e1a17', b3d: '#25201c', road: '#2b2521', roadMinor: '#231e1b', casing: '#191513', major: '#3a2a1e', majorCase: '#4b3322', text: '#bdb3aa', halo: '#141110', rail: '#2a2420' },
-}
-
-function restyle(map, dark) {
-  const P = dark ? PALETTE.dark : PALETTE.light
-  const layers = map.getStyle()?.layers || []
-  const set = (id, prop, v) => { try { map.setPaintProperty(id, prop, v) } catch {} }
-  for (const l of layers) {
-    const id = l.id.toLowerCase()
-    if (l.type === 'background') set(l.id, 'background-color', P.bg)
-    else if (l.type === 'fill') {
-      if (id.includes('water')) set(l.id, 'fill-color', P.water)
-      else if (id.includes('park') || id.includes('wood') || id.includes('grass') || id.includes('landcover')) set(l.id, 'fill-color', P.green)
-      else if (id.includes('building')) set(l.id, 'fill-color', P.building)
-      else if (id.includes('landuse') || id.includes('residential')) set(l.id, 'fill-color', P.bg)
-    } else if (l.type === 'line') {
-      if (id.includes('water') || id.includes('river')) set(l.id, 'line-color', P.water)
-      else if (id.includes('rail')) set(l.id, 'line-color', P.rail)
-      else if (id.includes('boundary') || id.includes('admin')) continue
-      else if (id.includes('casing')) set(l.id, 'line-color', id.includes('major') || id.includes('motorway') || id.includes('trunk') || id.includes('primary') ? P.majorCase : P.casing)
-      else if (id.includes('motorway') || id.includes('trunk') || id.includes('primary') || id.includes('major')) set(l.id, 'line-color', P.major)
-      else if (id.includes('highway') || id.includes('road') || id.includes('street') || id.includes('path') || id.includes('minor') || id.includes('service') || id.includes('bridge') || id.includes('tunnel')) set(l.id, 'line-color', id.includes('minor') || id.includes('service') || id.includes('path') ? P.roadMinor : P.road)
-    } else if (l.type === 'symbol') {
-      set(l.id, 'text-color', P.text)
-      set(l.id, 'text-halo-color', P.halo)
-      set(l.id, 'text-halo-width', 1.4)
-      try {
-        const tf = map.getLayoutProperty(l.id, 'text-field')
-        if (tf) map.setLayoutProperty(l.id, 'text-field', isAr ? ['coalesce', ['get', 'name:ar'], ['get', 'name']] : ['coalesce', ['get', 'name:en'], ['get', 'name_en'], ['get', 'name:latin'], ['get', 'name']])
-      } catch {}
-    }
-  }
-  // مبانٍ ثلاثية الأبعاد عند التقريب
-  const src = Object.entries(map.getStyle().sources || {}).find(([, s]) => s.type === 'vector')?.[0]
-  if (src && !map.getLayer('w-3d')) {
-    const firstSymbol = layers.find((l) => l.type === 'symbol')?.id
-    try {
-      map.addLayer({
-        id: 'w-3d', type: 'fill-extrusion', source: src, 'source-layer': 'building', minzoom: 15,
-        paint: {
-          'fill-extrusion-color': P.b3d,
-          'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, ['to-number', ['coalesce', ['get', 'render_height'], 8], 8]],
-          'fill-extrusion-base': ['to-number', ['coalesce', ['get', 'render_min_height'], 0], 0],
-          'fill-extrusion-opacity': 0.75,
-        },
-      }, firstSymbol)
-    } catch {}
-  } else if (map.getLayer('w-3d')) set('w-3d', 'fill-extrusion-color', P.b3d)
-}
-
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 function el(html, cls) { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; return d }
-
 function markerEl(m) {
   if (m.type === 'car') {
-    const d = el(carSvg(m.color || '#ffffff'), 'car-marker')
+    const d = el(`<div class="car-body">${carSvg(m.color || '#ffffff')}</div>`, 'car-marker')
     d.style.width = d.style.height = (m.size || 44) + 'px'
     return d
   }
-  if (m.type === 'me') return el('', 'me-dot')
-  const label = m.label ? `<div class="pin-label">${m.eta ? `<span class="eta">${m.eta}</span>` : ''}<span>${escape(m.label)}</span></div>` : ''
-  const dot = m.type === 'pickup' ? '<div class="dot-pickup"></div>' : m.type === 'stop' ? '<div class="dot-drop" style="border-color:var(--warning)"></div>' : '<div class="dot-drop"></div>'
+  if (m.type === 'me') return el('<span class="me-acc"></span><span class="me-cone"></span><span class="me-dot"></span>', 'me-marker')
+  const label = m.label ? `<div class="pin-label">${m.eta ? `<span class="eta">${esc(m.eta)}</span>` : ''}<span>${esc(m.label)}</span></div>` : ''
+  const dot = m.type === 'pickup' ? '<div class="pin-pulse"></div><div class="dot-pickup"></div>' : m.type === 'stop' ? '<div class="dot-drop" style="border-color:var(--warning)"></div>' : '<div class="dot-drop"></div>'
   return el(label + dot, 'pin-marker')
 }
-const escape = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const lerpAngle = (a, b, t) => { const d = ((((b - a) % 360) + 540) % 360) - 180; return a + d * t }
 
-const MapView = forwardRef(function MapView({ center = [13.1913, 32.8872], zoom = 14, markers = [], routes = [], onMoveStart, onMoveEnd, interactive = true, padding, satellite = false, onReady, className = '' }, ref) {
+const DASH = [[0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5], [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0], [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5], [0, 3, 3, 1], [0, 3.5, 3, 0.5]]
+
+const MapView = forwardRef(function MapView({ center = [-0.6309, 35.1899], zoom = 14, markers = [], routes = [], onMoveStart, onMoveEnd, onBearing, interactive = true, padding, mapType = 'standard', pitch3d = false, onReady, className = '' }, ref) {
   const box = useRef(null)
   const map = useRef(null)
   const mk = useRef(new Map())
   const [ready, setReady] = useState(false)
+  const [ver, setVer] = useState(0)
   const pad = useRef(padding)
   pad.current = padding
   const cb = useRef({})
-  cb.current = { onMoveStart, onMoveEnd, onReady }
+  cb.current = { onMoveStart, onMoveEnd, onReady, onBearing }
+  const mtRef = useRef(mapType)
+  mtRef.current = mapType
+  const theme = () => (mtRef.current === 'dark' || (mtRef.current === 'standard' && isDark()) ? 'dark' : 'light')
+  const styleKey = useRef('')
 
   useImperativeHandle(ref, () => ({
-    flyTo: (c, z, opts = {}) => map.current?.flyTo({ center: c, zoom: z ?? map.current.getZoom(), duration: 1100, essential: true, padding: pad.current, ...opts }),
+    flyTo: (c, z, opts = {}) => map.current?.flyTo({ center: c, zoom: z ?? map.current.getZoom(), duration: 1200, essential: true, padding: pad.current, curve: 1.3, ...opts }),
+    easeTo: (opts) => map.current?.easeTo({ duration: 900, padding: pad.current, ...opts }),
     fit: (coords, extra = {}) => {
       if (!map.current || !coords?.length) return
       const b = coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]))
-      map.current.fitBounds(b, { padding: { top: 90, bottom: 90, left: 50, right: 50, ...(pad.current || {}), ...extra }, duration: 1000, maxZoom: 16.5 })
+      map.current.fitBounds(b, { padding: { top: 90, bottom: 90, left: 50, right: 50, ...(pad.current || {}), ...extra }, duration: 1100, maxZoom: 16.5, bearing: map.current.getBearing(), pitch: map.current.getPitch() })
     },
     center: () => map.current?.getCenter().toArray(),
+    resetNorth: () => map.current?.easeTo({ bearing: 0, pitch: 0, duration: 700 }),
+    zoomBy: (d) => map.current?.easeTo({ zoom: map.current.getZoom() + d, duration: 300 }),
     map: () => map.current,
   }))
 
   useEffect(() => {
     ensureRTL()
-    const m = new maplibregl.Map({ container: box.current, style: STYLE, center, zoom, attributionControl: { compact: true }, interactive, pitchWithRotate: false, dragRotate: false, fadeDuration: 150 })
-    map.current = m
-    m.touchZoomRotate.disableRotation()
-    let failed = false
-    m.on('error', (e) => {
-      if (!failed && !m.isStyleLoaded() && String(e?.error?.message || '').match(/style|fetch|Failed/i)) { failed = true; m.setStyle(FALLBACK) }
+    const opts = { satellite: mapType === 'satellite' }
+    styleKey.current = theme() + mapType
+    const m = new maplibregl.Map({
+      container: box.current, style: buildStyle(theme(), opts), center, zoom, interactive, attributionControl: { compact: true },
+      antialias: true, maxPitch: 70, fadeDuration: 220, renderWorldCopies: false, maxTileCacheSize: 600, refreshExpiredTiles: false,
+      pitchWithRotate: true, dragRotate: true, touchPitch: true, cooperativeGestures: false,
     })
-    m.on('style.load', () => { restyle(m, isDark()); setReady(true); cb.current.onReady?.(m) })
+    map.current = m
+    m.on('style.load', () => { setReady(true); setVer((v) => v + 1); cb.current.onReady?.(m) })
+    m.on('styleimagemissing', (e) => { if (!m.hasImage(e.id)) m.addImage(e.id, { width: 1, height: 1, data: new Uint8Array(4) }) })
     m.on('movestart', (e) => { if (e.originalEvent) cb.current.onMoveStart?.() })
     m.on('moveend', (e) => cb.current.onMoveEnd?.(m.getCenter().toArray(), !!e.originalEvent))
-    const onTheme = () => m.isStyleLoaded() && restyle(m, isDark())
+    m.on('rotate', () => cb.current.onBearing?.(m.getBearing(), m.getPitch()))
+    m.on('pitch', () => cb.current.onBearing?.(m.getBearing(), m.getPitch()))
+    const onTheme = () => restyle()
     window.addEventListener('w-theme', onTheme)
     const ro = new ResizeObserver(() => m.resize())
     ro.observe(box.current)
     return () => { window.removeEventListener('w-theme', onTheme); ro.disconnect(); m.remove() }
   }, [])
 
-  // القمر الصناعي
-  useEffect(() => {
+  // تغيير النمط (فاتح/ليلي/قمر صناعي)
+  const restyle = () => {
     const m = map.current
-    if (!ready || !m) return
-    if (satellite && !m.getSource('sat')) {
-      m.addSource('sat', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, maxzoom: 19, attribution: 'Esri' })
-      const firstSymbol = m.getStyle().layers.find((l) => l.type === 'symbol')?.id
-      m.addLayer({ id: 'sat', type: 'raster', source: 'sat' }, firstSymbol)
-    }
-    if (m.getLayer('sat')) m.setLayoutProperty('sat', 'visibility', satellite ? 'visible' : 'none')
-  }, [satellite, ready])
+    if (!m) return
+    const key = theme() + mtRef.current
+    if (key === styleKey.current) return
+    styleKey.current = key
+    m.setStyle(buildStyle(theme(), { satellite: mtRef.current === 'satellite' }), { diff: false })
+  }
+  useEffect(() => { if (ready) restyle() }, [mapType])
 
-  // المسارات
+  // الإمالة ثلاثية الأبعاد
   useEffect(() => {
     const m = map.current
-    if (!ready || !m) return
+    if (!m || !ready) return
+    m.easeTo({ pitch: pitch3d ? 58 : 0, duration: 900, zoom: pitch3d ? Math.max(m.getZoom(), 16) : m.getZoom() })
+  }, [pitch3d, ready])
+
+  // المسارات + حركة "تدفق" فوق المسار
+  useEffect(() => {
+    const m = map.current
+    if (!ready || !m || !m.isStyleLoaded()) return
     const ids = new Set(routes.map((r) => r.id))
-    for (const l of m.getStyle().layers) {
-      if (l.id.startsWith('rt-') && !ids.has(l.id.replace(/^rt-(case-|main-)/, ''))) m.removeLayer(l.id)
-    }
+    for (const l of m.getStyle().layers) if (l.id.startsWith('rt-') && !ids.has(l.id.replace(/^rt-(case-|main-|flow-)/, ''))) m.removeLayer(l.id)
     for (const id of Object.keys(m.getStyle().sources)) if (id.startsWith('rs-') && !ids.has(id.slice(3))) m.removeSource(id)
+    const dark = theme() === 'dark'
     for (const r of routes) {
       const data = { type: 'Feature', geometry: { type: 'LineString', coordinates: r.coords || [] } }
       const s = m.getSource('rs-' + r.id)
-      if (s) s.setData(data)
-      else {
-        m.addSource('rs-' + r.id, { type: 'geojson', data, lineMetrics: true })
-        m.addLayer({ id: 'rt-case-' + r.id, type: 'line', source: 'rs-' + r.id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': r.casing || (isDark() ? '#000' : '#7B0E13'), 'line-width': (r.width || 6) + 4, 'line-opacity': r.dashed ? 0 : 0.35 } })
-        m.addLayer({
-          id: 'rt-main-' + r.id, type: 'line', source: 'rs-' + r.id, layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: r.dashed
-            ? { 'line-color': r.color || '#18120e', 'line-width': r.width || 4, 'line-dasharray': [0.5, 2] }
-            : { 'line-width': r.width || 6, 'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, r.from || '#12B76A', 0.5, r.color || '#E8650A', 1, r.to || '#C2410C'] },
-        })
-      }
+      if (s) { s.setData(data); continue }
+      m.addSource('rs-' + r.id, { type: 'geojson', data, lineMetrics: true })
+      const before = m.getLayer('poi') ? 'poi' : undefined
+      m.addLayer({ id: 'rt-case-' + r.id, type: 'line', source: 'rs-' + r.id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': r.casing || (dark ? '#000000' : '#5C0A0E'), 'line-width': ['interpolate', ['linear'], ['zoom'], 10, (r.width || 6) + 2, 17, (r.width || 6) + 7], 'line-opacity': r.dashed ? 0 : 0.35, 'line-blur': 0.5 } }, before)
+      m.addLayer({
+        id: 'rt-main-' + r.id, type: 'line', source: 'rs-' + r.id, layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: r.dashed
+          ? { 'line-color': r.color || (dark ? '#ffffff' : '#18120e'), 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 17, 6], 'line-dasharray': [0.4, 1.8] }
+          : { 'line-width': ['interpolate', ['linear'], ['zoom'], 10, r.width || 5, 17, (r.width || 6) + 4], 'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, r.from || '#12B76A', 0.45, r.color || '#FF7A1A', 1, r.to || '#C2410C'] },
+      }, before)
+      if (!r.dashed && r.flow !== false) m.addLayer({ id: 'rt-flow-' + r.id, type: 'line', source: 'rs-' + r.id, layout: { 'line-cap': 'butt', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-opacity': 0.55, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 17, 3], 'line-dasharray': DASH[0] } }, before)
     }
-  }, [routes, ready])
+  }, [routes, ready, ver])
+  useEffect(() => {
+    if (!ready) return
+    let step = 0, raf, last = 0
+    const anim = (t) => {
+      const m = map.current
+      if (m && t - last > 70) {
+        last = t
+        step = (step + 1) % DASH.length
+        for (const r of routes) if (m.getLayer('rt-flow-' + r.id)) m.setPaintProperty('rt-flow-' + r.id, 'line-dasharray', DASH[step])
+      }
+      raf = requestAnimationFrame(anim)
+    }
+    if (routes.some((r) => !r.dashed && r.flow !== false)) raf = requestAnimationFrame(anim)
+    return () => cancelAnimationFrame(raf)
+  }, [routes, ready, ver])
 
-  // العلامات
+  // العلامات: حركة وانعطاف ناعمان
   useEffect(() => {
     const m = map.current
     if (!m) return
@@ -174,28 +149,33 @@ const MapView = forwardRef(function MapView({ center = [13.1913, 32.8872], zoom 
       if (!x?.coords) continue
       seen.add(x.id)
       let e = mk.current.get(x.id)
-      const sig = `${x.type}|${x.label || ''}|${x.eta || ''}|${x.color || ''}`
+      const sig = `${x.type}|${x.label || ''}|${x.eta || ''}|${x.color || ''}|${x.size || ''}`
       if (e && e.sig !== sig) { e.marker.remove(); mk.current.delete(x.id); e = null }
       if (!e) {
         const node = markerEl(x)
-        const marker = new maplibregl.Marker({ element: node, anchor: x.type === 'car' || x.type === 'me' ? 'center' : 'bottom', rotationAlignment: x.type === 'car' ? 'map' : 'viewport' }).setLngLat(x.coords).addTo(m)
+        const marker = new maplibregl.Marker({ element: node, anchor: x.type === 'car' || x.type === 'me' ? 'center' : 'bottom', rotationAlignment: x.type === 'car' ? 'map' : 'viewport', pitchAlignment: x.type === 'car' ? 'map' : 'viewport' }).setLngLat(x.coords).addTo(m)
         if (x.onClick) node.addEventListener('click', x.onClick)
-        e = { marker, node, sig, pos: x.coords, anim: null }
+        if (x.type === 'car') marker.setRotation(x.heading || 0)
+        e = { marker, node, sig, rot: x.heading || 0, anim: null }
         mk.current.set(x.id, e)
       } else if (x.type === 'car') {
-        // تحريك ناعم بين الموقعين
         const from = e.marker.getLngLat().toArray(), to = x.coords, t0 = performance.now(), dur = x.smooth ?? 1300
+        const r0 = e.rot, r1 = x.heading ?? r0
         cancelAnimationFrame(e.anim)
-        const step = (t) => {
-          const k = Math.min(1, (t - t0) / dur)
-          e.marker.setLngLat([from[0] + (to[0] - from[0]) * k, from[1] + (to[1] - from[1]) * k])
-          if (k < 1) e.anim = requestAnimationFrame(step)
+        const stepF = (t) => {
+          const k = Math.min(1, (t - t0) / dur), ease = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
+          e.marker.setLngLat([from[0] + (to[0] - from[0]) * ease, from[1] + (to[1] - from[1]) * ease])
+          e.rot = lerpAngle(r0, r1, Math.min(1, k * 1.6))
+          e.marker.setRotation(e.rot)
+          if (k < 1) e.anim = requestAnimationFrame(stepF)
         }
-        e.anim = requestAnimationFrame(step)
-      } else e.marker.setLngLat(x.coords)
-      if (x.type === 'car') e.marker.setRotation(x.heading || 0)
+        e.anim = requestAnimationFrame(stepF)
+      } else {
+        e.marker.setLngLat(x.coords)
+        if (x.type === 'me') e.node.classList.toggle('has-heading', x.heading != null && !isNaN(x.heading)), e.node.style.setProperty('--hd', (x.heading || 0) + 'deg')
+      }
     }
-    for (const [id, e] of mk.current) if (!seen.has(id)) { e.marker.remove(); mk.current.delete(id) }
+    for (const [id, e] of mk.current) if (!seen.has(id)) { cancelAnimationFrame(e.anim); e.marker.remove(); mk.current.delete(id) }
   }, [markers])
 
   return <div ref={box} className={`map ${className}`} />

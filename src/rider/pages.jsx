@@ -7,7 +7,7 @@ import { Page, Empty, Row, Sheet, toast, Avatar, Stars, useNav } from '@/ui/kit.
 import { useApp } from '@/ui/app-ctx.jsx'
 import { ClassCar, Coin } from '@/ui/art.jsx'
 import { StatusBadge, RouteSummary, Plate, ChatPage } from '@/ui/ride-ui.jsx'
-import { tr, money, dateTime, km, mins, copy, shareLink, compressImage, isAr, LANG } from '@/core/util.js'
+import { tr, money, num, dateTime, km, mins, copy, shareLink, compressImage, isAr, LANG } from '@/core/util.js'
 import { CITIES, SITE_URL } from '@/core/config.js'
 import { watchRiderRides, watchTx, redeemVoucher, checkPromo, updateUser, deleteAccount, cancelRide, store } from '@/core/api.js'
 import { searchPlaces } from '@/core/geo.js'
@@ -126,7 +126,7 @@ export function Wallet() {
         <div className="small" style={{ opacity: 0.75, position: 'relative', zIndex: 1 }}>{tr('رصيد البورتفاي', 'Wallet balance')}</div>
         <div className="wbig num" style={{ position: 'relative', zIndex: 1 }}>{money(user.wallet || 0)}</div>
         <div className="wrow">
-          <div><small>{tr('نقاط الكادوات', 'Reward points')}</small><b className="num">{money(user.points || 0)}</b></div>
+          <div><small>{tr('النقاط', 'Points')}</small><b className="num">{num(user.points || 0)}</b></div>
           <div><small>{tr('كورساتي', 'Trips')}</small><b className="num">{user.trips || 0}</b></div>
         </div>
       </div>

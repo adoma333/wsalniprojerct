@@ -1,6 +1,6 @@
 // منطق المنصة فوق طبقة البيانات: الإعدادات، الركاب، السائقين، الرحلات، المكافآت، المحفظة، الدعم.
 import { store, auth } from './store.js'
-import { DEFAULT_SETTINGS } from './config.js'
+import { DEFAULT_SETTINGS, pointsToDa, daToPoints } from './config.js'
 import { shortId } from './util.js'
 
 // ===== الإعدادات =====
@@ -48,7 +48,7 @@ export const deleteReel = (id) => store.remove(`reels/${id}`)
 const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10)
 
 export async function claimReel(uid, reel, rw) {
-  const reward = Number(reel.reward ?? rw.perReel) || 0
+  const reward = Math.round(Number(reel.points ?? rw.pointsPerReel) || 0)
   const today = dayKey()
   return store.tx(async (t) => {
     const v = await t.get(`users/${uid}/views/${reel.id}`)
@@ -62,11 +62,33 @@ export async function claimReel(uid, reel, rw) {
     return { ok: true, reward }
   }).then(async (r) => {
     if (r.ok) {
-      await addTx(uid, { kind: 'reel', amount: reward, currency: 'points', title: `مشاهدة إعلان: ${reel.advertiser}` }).catch(() => {})
+      await addTx(uid, { kind: 'reel', amount: reward, currency: 'points', title: `إشهار: ${reel.advertiser}` }).catch(() => {})
+      if (rw.autoConvert) {
+        const u = await store.get(`users/${uid}`)
+        if ((u?.points || 0) >= (rw.autoConvertAt || 0)) await convertPoints(uid, rw, u.points).catch(() => {})
+      }
       store.set(`reelStats/${reel.id}`, { views: store.inc(1) }, true).catch(() => {})
     }
     return r
   })
+}
+
+// تحويل النقاط إلى دنانير في البورتفاي بالسعر الحالي (يحدده الأدمن)
+export async function convertPoints(uid, rw, pts) {
+  const r = await store.tx(async (t) => {
+    const u = await t.get(`users/${uid}`)
+    const have = u?.points || 0
+    const p = Math.min(Math.floor(pts ?? have), have)
+    if (p <= 0 || p < (rw.minConvert || 0)) return { ok: false, reason: 'min' }
+    const da = pointsToDa(p, rw)
+    t.update(`users/${uid}`, { points: store.inc(-p), wallet: store.inc(da), lastConvert: { points: p, da, at: Date.now() }, updatedAt: Date.now() })
+    return { ok: true, points: p, da }
+  })
+  if (r.ok) {
+    await addTx(uid, { kind: 'convert', amount: -r.points, currency: 'points', title: 'تحويل النقاط للبورتفاي' }).catch(() => {})
+    await addTx(uid, { kind: 'convert', amount: r.da, currency: 'wallet', title: `تحويل ${r.points} نقطة` }).catch(() => {})
+  }
+  return r
 }
 
 export const watchReelStats = (cb) => store.watchList('reelStats', {}, cb)
@@ -156,11 +178,12 @@ export async function settleRide(uid, ride) {
     const u = await t.get(`users/${uid}`)
     const field = ride.payment === 'points' ? 'points' : ride.payment === 'wallet' ? 'wallet' : null
     const patch = { trips: store.inc(1), updatedAt: Date.now() }
-    if (field) patch[field] = store.inc(-Math.min(amount, u?.[field] || 0))
+    const due = field === 'points' ? (ride.pointsCost ?? daToPoints(amount, ride.pointsRate)) : amount
+    if (field) patch[field] = store.inc(-Math.min(due, u?.[field] || 0))
     t.update(`users/${uid}`, patch)
     t.update(`rides/${ride.id}`, { charged: true })
   })
-  if (ride.payment !== 'cash') await addTx(uid, { kind: 'ride', amount: -amount, currency: ride.payment === 'points' ? 'points' : 'wallet', title: ride.payment === 'points' ? 'رحلة مجانية بنقاط المكافآت' : 'دفع رحلة من المحفظة' }).catch(() => {})
+  if (ride.payment !== 'cash') await addTx(uid, { kind: 'ride', amount: ride.payment === 'points' ? -(ride.pointsCost ?? daToPoints(amount, ride.pointsRate)) : -amount, currency: ride.payment === 'points' ? 'points' : 'wallet', title: ride.payment === 'points' ? 'كورسة بلاش بالنقاط' : 'خلاص كورسة من البورتفاي' }).catch(() => {})
 }
 
 export const watchMessages = (rideId, cb) => store.watchList(`rides/${rideId}/messages`, { orderBy: ['at', 'asc'], limit: 200 }, cb)

@@ -4,6 +4,8 @@ import {
   CalendarClock, BadgeDollarSign, Gift, Users, Bell, LifeBuoy, Info, Check, Route as RouteIco, Coins,
 } from 'lucide-react'
 import MapView from '@/map/MapView.jsx'
+import MapControls, { useMapPrefs } from '@/map/MapControls.jsx'
+import DragPanel from '@/ui/DragPanel.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
 import { useNav, Drawer, DrawerItem, Avatar, Sheet, Stars, toast } from '@/ui/kit.jsx'
 import { ClassCar, Coin } from '@/ui/art.jsx'
@@ -30,7 +32,8 @@ export default function Home() {
   const [simReq, setSimReq] = useState(null)
   const [rides, setRides] = useState([])
   const [drawer, setDrawer] = useState(false)
-  const [sat, setSat] = useState(false)
+  const prefs = useMapPrefs()
+  const [brg, setBrg] = useState({ b: 0, p: 0 })
   const [panelH, setPanelH] = useState(140)
   const [now, setNow] = useState(Date.now())
   const online = !!driver.online
@@ -118,13 +121,6 @@ export default function Home() {
     return () => clearInterval(t)
   }, [simDriving, ride?.status, ride?.id])
 
-  // ارتفاع اللوحة
-  useEffect(() => {
-    if (!panelRef.current) return
-    const ro = new ResizeObserver(() => setPanelH(panelRef.current?.offsetHeight || 0))
-    ro.observe(panelRef.current)
-    return () => ro.disconnect()
-  })
 
   // مسار الوصول للراكب
   const [approach, setApproach] = useState(null)
@@ -212,7 +208,7 @@ export default function Home() {
 
   return (
     <div className="home">
-      <MapView ref={mapRef} center={me} zoom={15} markers={markers} routes={routes} satellite={sat} padding={{ bottom: panelH }} onReady={(m) => {
+      <MapView ref={mapRef} center={me} zoom={15} markers={markers} routes={routes} mapType={prefs.mapType} pitch3d={prefs.pitch3d} onBearing={(b, p) => setBrg({ b, p })} padding={{ bottom: panelH, top: 70 }} onReady={(m) => {
         try {
           m.addSource('hot', { type: 'geojson', data: { type: 'FeatureCollection', features: hot.map((c) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: c } })) } })
           m.addLayer({ id: 'hot', type: 'circle', source: 'hot', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 30, 16, 180], 'circle-color': '#E8650A', 'circle-opacity': 0.12, 'circle-blur': 0.6 } })
@@ -226,15 +222,11 @@ export default function Home() {
           <span className="knob"><Zap size={20} fill="#fff" /></span>
         </button>
       </div>
-      <div className="float-ctrls" style={{ bottom: panelH + 16 }}>
-        <button className="icon-btn sm" onClick={() => setSat(!sat)} style={sat ? { background: 'var(--ink)', color: 'var(--bg)' } : null}><Layers size={19} /></button>
-        <button className="icon-btn sm" onClick={async () => { const p = await currentPosition(); if (p) { setPos(p.coords); mapRef.current?.flyTo(p.coords, 16) } }}><Crosshair size={19} /></button>
-      </div>
+      <MapControls prefs={prefs} bearing={brg.b} pitch={brg.p} onNorth={() => mapRef.current?.resetNorth()} bottom={panelH + 14} onLocate={async () => { const p = await currentPosition(); if (p) { setPos(p.coords); mapRef.current?.flyTo(p.coords, 16.5) } }} />
 
       {request && !ride && <RequestCard req={request} me={me} settings={settings} onAccept={accept} onDecline={decline} key={request.id} />}
 
-      <div className="panel" ref={panelRef} key={ride ? ride.id + ride.status : 'idle'} style={{ paddingTop: 8 }}>
-        <div className="grabber" />
+      <DragPanel key={ride ? ride.id + ride.status : 'idle'} resetKey={ride?.status} peek={ride ? 150 : 120} onVisible={setPanelH}>
         {!ride && (
           <div className="rise">
             {!online && (
@@ -258,7 +250,7 @@ export default function Home() {
         )}
         {ride && ACTIVE.includes(ride.status) && <ActiveRide ride={ride} me={me} approach={approach} nav={nav} uid={uid} driver={driver} settings={settings} />}
         {ride && ride.status === 'completed' && <Collect ride={ride} uid={uid} settings={settings} />}
-      </div>
+      </DragPanel>
 
       <DriverDrawer open={drawer} onClose={() => setDrawer(false)} driver={driver} nav={nav} online={online} />
     </div>
