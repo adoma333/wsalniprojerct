@@ -349,3 +349,44 @@
 .upload-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 160px; border-radius: 20px; border: 2px dashed var(--line-2); background: var(--card-2); color: var(--muted); cursor: pointer; overflow: hidden; text-align: center; padding: 10px; }
 .upload-box b { color: var(--ink); }
 .upload-box img { max-height: 260px; border-radius: 12px; }
+
+/* اقترح سومتك */
+.offer-box { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 8px 16px; }
+.offer-val { font-size: 38px; font-weight: 800; letter-spacing: -.5px; color: var(--ink); display: block; line-height: 1.1; }
+.offer-chance { display: flex; align-items: center; gap: 4px; margin-top: 14px; font-size: 13px; font-weight: 600; }
+.offer-chance i { width: 22px; height: 6px; border-radius: 4px; background: var(--line-2); }
+.offer-chance span { margin-inline-start: 6px; }
+.offer-chance.high i { background: var(--success); } .offer-chance.high { color: var(--success); }
+.offer-chance.mid i:nth-child(-n+2) { background: var(--gold); } .offer-chance.mid { color: #a16207; }
+.offer-chance.low i:first-child { background: var(--danger); } .offer-chance.low { color: var(--danger); }
+/* كود الرحلة */
+.pin-strip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 10px 0 2px; border-radius: 16px; background: linear-gradient(135deg, #1b1410, #3a1b0c); color: #fff; font-size: 12.5px; }
+.pin-strip b { display: flex; gap: 4px; }
+.pin-strip b i { font-style: normal; width: 28px; height: 34px; border-radius: 9px; background: rgba(255,255,255,.14); display: grid; place-items: center; font-size: 18px; font-weight: 800; }
+
+/* بطاقة الطالب */
+.stu-hero { position: relative; overflow: hidden; border-radius: 26px; padding: 22px 20px; color: #fff; background: radial-gradient(120% 90% at 100% 0, #6172F3 0, #3538CD 45%, #1F235B 100%); box-shadow: 0 18px 40px rgba(53,56,205,.35); }
+.stu-hero::after { content: ''; position: absolute; width: 220px; height: 220px; border-radius: 50%; inset-inline-end: -70px; bottom: -110px; background: rgba(255,255,255,.08); }
+.stu-hero h2 { font-size: 24px; margin: 10px 0 6px; line-height: 1.25; }
+.stu-hero .big { font-size: 56px; font-weight: 800; line-height: 1; letter-spacing: -2px; }
+.stu-hero p { opacity: .85; font-size: 13.5px; margin: 0; }
+.stu-perks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+.stu-perks div { background: rgba(255,255,255,.12); border-radius: 14px; padding: 10px 8px; text-align: center; font-size: 11.5px; line-height: 1.35; }
+.stu-perks b { display: block; font-size: 15px; }
+.stu-card { position: relative; overflow: hidden; aspect-ratio: 1.586; border-radius: 22px; padding: 18px; color: #fff; background: linear-gradient(135deg, #1F235B 0, #3538CD 55%, #6172F3 100%); box-shadow: 0 20px 44px rgba(31,35,91,.4); display: flex; flex-direction: column; }
+.stu-card::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(255,255,255,.05) 0 2px, transparent 2px 14px); }
+.stu-card .holo { position: absolute; width: 140%; height: 60%; top: -10%; left: -20%; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.22) 50%, transparent 70%); animation: holo 3.6s ease-in-out infinite; }
+@keyframes holo { 0%, 100% { transform: translateX(-30%) rotate(8deg) } 50% { transform: translateX(30%) rotate(8deg) } }
+.stu-card > * { position: relative; }
+.stu-card .sc-row { display: flex; align-items: center; justify-content: space-between; }
+.stu-card .verified { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 99px; background: #12B76A; font-size: 11.5px; font-weight: 800; }
+.stu-card .nm { margin-top: auto; font-size: 19px; font-weight: 800; }
+.stu-card .un { font-size: 12px; opacity: .85; margin-top: 2px; }
+.stu-card .pct { font-size: 34px; font-weight: 800; line-height: 1; }
+.uni-list { max-height: 46vh; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.uni-list button { text-align: start; padding: 12px 14px; border-radius: 14px; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+.uni-list button.active { background: var(--brand-50); color: var(--brand); font-weight: 700; }
+.scan-cta { display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px; border-radius: 20px; border: 2px dashed var(--brand); background: var(--brand-50); text-align: start; }
+.scan-cta .ic { width: 56px; height: 56px; border-radius: 18px; background: var(--grad); color: #fff; display: grid; place-items: center; flex-shrink: 0; box-shadow: 0 8px 20px rgba(232,101,10,.35); }
+.stu-banner { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 13px 14px; border-radius: 18px; color: #fff; text-align: start; background: linear-gradient(120deg, #3538CD, #6172F3); box-shadow: 0 10px 24px rgba(53,56,205,.28); }
+.stu-banner b { display: block; font-size: 14px; } .stu-banner small { font-size: 12px; opacity: .85; }

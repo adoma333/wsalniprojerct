@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { User, Phone, Mail, MapPin, Car, Palette, Hash, Calendar, Camera, FileCheck2, ShieldCheck, Clock, XCircle, ChevronDown, CheckCircle2, IdCard, FileText, ArrowLeft } from 'lucide-react'
+import { User, Phone, Mail, MapPin, Car, Palette, Hash, Calendar, Camera, FileCheck2, ShieldCheck, Clock, XCircle, ChevronDown, CheckCircle2, IdCard, FileText, ArrowLeft, ScanLine } from 'lucide-react'
+import Scanner from '@/ui/Scanner.jsx'
 import { useBoot, AppProvider } from '@/ui/app-ctx.jsx'
-import { NavProvider, Splash, Toasts, toast, Avatar } from '@/ui/kit.jsx'
+import { NavProvider, Splash, Toasts, toast, Avatar, Maintenance } from '@/ui/kit.jsx'
 import { ClassCar } from '@/ui/art.jsx'
 import { tr, isAr, compressImage } from '@/core/util.js'
 import { CITIES } from '@/core/config.js'
@@ -24,7 +25,8 @@ export default function App() {
   const ctx = { ...st, driver, user: driver, kind: 'driver' }
   let body = null
   if (ready && !st.error) {
-    if (!driver || editing) body = <Register uid={st.uid} existing={driver} autoApprove={st.settings.autoApproveDrivers} onDone={() => setEditing(false)} />
+    if (st.settings.maintenance?.on) body = <Maintenance message={st.settings.maintenance.message} support={st.settings.support} />
+    else if (!driver || editing) body = <Register uid={st.uid} existing={driver} autoApprove={st.settings.autoApproveDrivers || st.settings.kyc?.autoVerify} onDone={() => setEditing(false)} />
     else if (driver.status === 'pending') body = <Status icon={<Clock size={44} />} color="var(--warning)" title={tr('الطلب تاعك راهو يتراجع', 'Under review')} sub={tr('نراجع مستنداتك دروك. ستصلك الموافقة خلال 24 ساعة كحد أقصى.', 'We are reviewing your documents.')} onEdit={() => setEditing(true)} />
     else if (driver.status === 'rejected') body = <Status icon={<XCircle size={44} />} color="var(--danger)" title={tr('ما قدرناش نقبلو الطلب', 'Application rejected')} sub={driver.rejectReason || tr('يرجى تحديث المستندات وإعادة الإرسال', 'Please update your documents')} onEdit={() => setEditing(true)} />
     else if (driver.status === 'blocked') body = <Status icon={<XCircle size={44} />} color="var(--danger)" title={tr('الحساب موقوف', 'Account suspended')} sub={tr('تواصل مع الدعم لمزيد من المعلومات', 'Contact support')} />
@@ -76,6 +78,7 @@ function Register({ uid, existing, autoApprove, onDone }) {
     docs: existing?.docs || {}, referral: '',
   }))
   const [busy, setBusy] = useState(false)
+  const [scan, setScan] = useState(null)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   const setV = (k) => (e) => setF({ ...f, vehicle: { ...f.vehicle, [k]: e.target.value } })
   const upload = (k) => async (e) => {
@@ -156,12 +159,11 @@ function Register({ uid, existing, autoApprove, onDone }) {
           <div className="col rise">
             <div className="small muted">{tr('صوّر الوثائق مليح. محفوظين في أمان وما يشوفهم غير فريق المراجعة.', 'Take clear photos. Only our review team can see them.')}</div>
             {DOCS.map(([k, label, I]) => (
-              <label key={k} className="row" style={{ border: '1.5px dashed ' + (f.docs[k] ? 'var(--success)' : 'var(--line-2)'), borderRadius: 18, cursor: 'pointer', background: f.docs[k] ? 'var(--success-bg)' : 'var(--card-2)' }}>
+              <button key={k} className="row" onClick={() => setScan(k)} style={{ border: '1.5px dashed ' + (f.docs[k] ? 'var(--success)' : 'var(--line-2)'), borderRadius: 18, background: f.docs[k] ? 'var(--success-bg)' : 'var(--card-2)', textAlign: 'start', width: '100%' }}>
                 {f.docs[k] ? <img src={f.docs[k]} alt="" style={{ width: 54, height: 42, objectFit: 'cover', borderRadius: 10 }} /> : <span className="ri" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}><I size={20} /></span>}
-                <span className="rt"><b>{label}</b><small>{f.docs[k] ? tr('تحمّلت ✓ اضغط باش تبدّل', 'Uploaded ✓ tap to change') : tr('اضغط باش تصوّر ولا تختار تصويرة', 'Tap to take or choose a photo')}</small></span>
-                {f.docs[k] ? <CheckCircle2 color="var(--success)" /> : <Camera size={20} color="var(--muted)" />}
-                <input type="file" accept="image/*" capture="environment" hidden onChange={upload(k)} />
-              </label>
+                <span className="rt"><b>{label}</b><small>{f.docs[k] ? tr('تحقّقنا منها ✓ اضغط باش تبدّل', 'Verified ✓ tap to change') : tr('اضغط وصوّرها، الكاميرا تكشفها وحدها', 'Tap to scan, auto-detected')}</small></span>
+                {f.docs[k] ? <CheckCircle2 color="var(--success)" /> : <ScanLine size={20} color="var(--brand)" />}
+              </button>
             ))}
           </div>
         )}
@@ -175,6 +177,15 @@ function Register({ uid, existing, autoApprove, onDone }) {
         )}
       </div>
       </div>
+      <Scanner
+        open={!!scan} onClose={() => setScan(null)}
+        onDone={(img) => { setF((x) => ({ ...x, docs: { ...x.docs, [scan]: img } })); setScan(null) }}
+        shape={scan === 'carPhoto' ? 'wide' : 'card'}
+        title={DOCS.find(([k]) => k === scan)?.[1]}
+        hint={scan === 'carPhoto' ? tr('خلّي الطوموبيل كاملة والماتريكول باينة', 'Whole car with visible plate') : tr('حط الوثيقة داخل الإطار', 'Place the document in the frame')}
+        steps={scan === 'carPhoto' ? [tr('تحليل التصويرة', 'Analysing photo'), tr('قراءة الماتريكول', 'Reading plate'), tr('تمّ الحفظ', 'Saved')] : [tr('قراءة الوثيقة', 'Reading document'), tr('التحقق من الصلاحية', 'Checking validity'), tr('مطابقة المعلومات', 'Matching details')]}
+        successText={tr('الوثيقة مقبولة ✓', 'Document accepted ✓')}
+      />
       <div className="page-foot">
         <button className="btn btn-primary btn-block btn-lg" disabled={!valid[step] || busy} onClick={() => (step < 3 ? setStep(step + 1) : submit())}>
           {busy ? <span className="spinner" /> : step < 3 ? tr('التالي', 'Next') : tr('ابعث الطلب', 'Submit')}

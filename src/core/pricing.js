@@ -18,23 +18,30 @@ export function demandFactor(searching = 0, available = 5) {
   return 1
 }
 
-export function quote(cls, route, pricing, { demand = 1, promo = null, when = new Date() } = {}) {
+export function quote(cls, route, pricing, { demand = 1, promo = null, when = new Date(), student = null, zone = null } = {}) {
   const km = route?.distanceKm || 0
   const min = route?.durationMin || 0
   const tf = timeFactor(pricing, when)
   const raw = cls.base + cls.perKm * km + cls.perMin * min
-  const surge = Math.round(tf.mult * demand * 100) / 100
+  const surge = Math.round(tf.mult * demand * (zone?.mult || 1) * 100) / 100
   let subtotal = Math.max(cls.min, raw) * surge
   let discount = 0
   if (promo?.active) {
     discount = promo.type === 'percent' ? (subtotal * promo.value) / 100 : promo.value
     if (promo.max) discount = Math.min(discount, promo.max)
   }
+  let studentOff = 0
+  if (student?.pct) {
+    studentOff = ((subtotal - discount) * student.pct) / 100
+    if (student.max) studentOff = Math.min(studentOff, student.max)
+    discount += studentOff
+  }
   const total = Math.max(0, roundTo(subtotal - discount, pricing.roundTo || 0.5))
   return {
     total,
     original: roundTo(subtotal, pricing.roundTo || 0.5),
     discount: roundTo(discount, 0.5),
+    student: Math.round(studentOff),
     surge,
     timeKey: tf.key,
     breakdown: { base: cls.base, distance: cls.perKm * km, time: cls.perMin * min, km, min },

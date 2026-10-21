@@ -5,7 +5,7 @@ import { useApp } from '@/ui/app-ctx.jsx'
 import { Coin } from '@/ui/art.jsx'
 import { tr, num, compact, haptic } from '@/core/util.js'
 import { builtinReels } from '@/core/reels.js'
-import { watchViews, watchCustomReels, claimReel } from '@/core/api.js'
+import { watchViews, watchCustomReels, claimReel, clickReel } from '@/core/api.js'
 
 // قائمة الإشهارات: إشهارات الأدمن أولًا ثم المدمجة
 export function useReels() {
@@ -178,7 +178,7 @@ function Reel({ i, reel, active, near, seen, total, onComplete }) {
         </div>
         <div className="cap">{reel.caption}</div>
         {reel.music && <div className="music"><Music2 size={14} /><span>{reel.music}</span></div>}
-        <a className={`cta ${elapsed > 3 || !active ? 'hot' : ''}`} href={reel.link || undefined} target="_blank" rel="noreferrer" onClick={(e) => !reel.link && e.preventDefault()}>
+        <a className={`cta ${elapsed > 3 || !active ? 'hot' : ''}`} href={reel.link || undefined} target="_blank" rel="noreferrer" onClick={(e) => { clickReel(reel.id); if (!reel.link) e.preventDefault() }}>
           <span className="flex" style={{ gap: 8 }}><Sparkles size={16} />{reel.cta || tr('اعرف أكثر', 'Learn more')}</span>
           <ChevronLeft size={18} style={{ transform: document.dir === 'rtl' ? '' : 'scaleX(-1)' }} />
         </a>

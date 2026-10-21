@@ -42,16 +42,18 @@ const MapView = forwardRef(function MapView({ center = [-0.6309, 35.1899], zoom 
   cb.current = { onMoveStart, onMoveEnd, onReady, onBearing }
   const mtRef = useRef(mapType)
   mtRef.current = mapType
+  const pitchRef = useRef(pitch3d ? 58 : 0)
+  pitchRef.current = pitch3d ? 58 : 0
   const theme = () => (mtRef.current === 'dark' || (mtRef.current === 'standard' && isDark()) ? 'dark' : 'light')
   const styleKey = useRef('')
 
   useImperativeHandle(ref, () => ({
-    flyTo: (c, z, opts = {}) => map.current?.flyTo({ center: c, zoom: z ?? map.current.getZoom(), duration: 1200, essential: true, padding: pad.current, curve: 1.3, ...opts }),
-    easeTo: (opts) => map.current?.easeTo({ duration: 900, padding: pad.current, ...opts }),
+    flyTo: (c, z, opts = {}) => map.current?.flyTo({ center: c, zoom: z ?? map.current.getZoom(), duration: 1200, essential: true, padding: pad.current, curve: 1.3, pitch: pitchRef.current, ...opts }),
+    easeTo: (opts) => map.current?.easeTo({ duration: 900, padding: pad.current, pitch: pitchRef.current, ...opts }),
     fit: (coords, extra = {}) => {
       if (!map.current || !coords?.length) return
       const b = coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]))
-      map.current.fitBounds(b, { padding: { top: 90, bottom: 90, left: 50, right: 50, ...(pad.current || {}), ...extra }, duration: 1100, maxZoom: 16.5, bearing: map.current.getBearing(), pitch: map.current.getPitch() })
+      map.current.fitBounds(b, { padding: { top: 90, bottom: 90, left: 50, right: 50, ...(pad.current || {}), ...extra }, duration: 1100, maxZoom: 16.5, bearing: map.current.getBearing(), pitch: pitchRef.current })
     },
     center: () => map.current?.getCenter().toArray(),
     resetNorth: () => map.current?.easeTo({ bearing: 0, pitch: 0, duration: 700 }),

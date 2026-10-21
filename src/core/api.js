@@ -13,7 +13,13 @@ function merge(def, val) {
 export const withDefaults = (s) => merge(DEFAULT_SETTINGS, s || {})
 export function watchSettings(cb) { return store.watch('settings/app', (s) => cb(withDefaults(s))) }
 export async function getSettings() { return withDefaults(await store.get('settings/app').catch(() => null)) }
-export async function saveSettings(patch) { await store.set('settings/app', { ...patch, updatedAt: Date.now() }, true) }
+export async function saveSettings(patch, note) {
+  await store.set('settings/app', { ...patch, updatedAt: Date.now() }, true)
+  audit('settings', note || `تعديل: ${Object.keys(patch).join('، ')}`)
+}
+// ===== سجل العمليات (لوحة التحكم) =====
+export const audit = (action, detail = '', extra = {}) => store.add('audit', { action, detail, ...extra, at: Date.now() }).catch(() => {})
+export const watchAudit = (cb) => store.watchList('audit', { orderBy: ['at', 'desc'], limit: 300 }, cb)
 
 // ===== الركاب =====
 export const watchUser = (uid, cb) => store.watch(`users/${uid}`, cb)
@@ -98,6 +104,7 @@ export async function likeReel(uid, reelId, on) {
   else await store.remove(`users/${uid}/likes/${reelId}`)
   await store.set(`reelStats/${reelId}`, { likes: store.inc(on ? 1 : -1) }, true).catch(() => {})
 }
+export const clickReel = (reelId) => store.set(`reelStats/${reelId}`, { clicks: store.inc(1) }, true).catch(() => {})
 export const shareReel = (reelId) => store.set(`reelStats/${reelId}`, { shares: store.inc(1) }, true).catch(() => {})
 export const watchComments = (reelId, cb) => store.watchList(`reelStats/${reelId}/comments`, { orderBy: ['at', 'desc'], limit: 80 }, cb)
 export async function addComment(reelId, uid, name, text) {
@@ -150,6 +157,7 @@ export const watchTopups = (cb) => store.watchList('topups', { orderBy: ['at', '
 export const watchMyTopups = (uid, cb) => store.watchList('topups', { where: [['uid', '==', uid]] }, (t) => cb(t.sort((a, b) => b.at - a.at)))
 export async function reviewTopup(t, approve, note = '') {
   await store.update(`topups/${t.id}`, { status: approve ? 'paid' : 'rejected', reviewedAt: Date.now(), note })
+  audit('topup', `${approve ? 'قبول' : 'رفض'} شحن ${t.amount} دج (${t.name || t.uid})`)
   if (approve) {
     await store.update(`users/${t.uid}`, { wallet: store.inc(t.amount), updatedAt: Date.now() })
     await addTx(t.uid, { kind: 'topup', amount: t.amount, currency: 'wallet', title: `شحن ${METHOD_NAMES[t.method] || t.method}` }).catch(() => {})
@@ -246,3 +254,33 @@ export async function deleteAccount(kind, uid) {
   await auth.reset()
 }
 export { store, auth }
+
+// ===== خصم الطلبة =====
+export const UNIVERSITIES = [
+  'جامعة جيلالي ليابس – سيدي بلعباس', 'جامعة هواري بومدين (USTHB) – الجزائر', 'جامعة الجزائر 1 – بن يوسف بن خدة', 'جامعة الجزائر 2 – أبو القاسم سعد الله', 'جامعة الجزائر 3',
+  'جامعة وهران 1 – أحمد بن بلة', 'جامعة وهران 2 – محمد بن أحمد', 'جامعة العلوم والتكنولوجيا – وهران (USTO)', 'جامعة قسنطينة 1 – الإخوة منتوري', 'جامعة باجي مختار – عنابة',
+  'جامعة فرحات عباس – سطيف 1', 'جامعة سعد دحلب – البليدة 1', 'جامعة أبو بكر بلقايد – تلمسان', 'جامعة باتنة 2', 'جامعة عبد الرحمان ميرة – بجاية',
+  'جامعة عبد الحميد بن باديس – مستغانم', 'جامعة مولود معمري – تيزي وزو', 'المدرسة الوطنية العليا للإعلام الآلي (ESI)', 'المدرسة الوطنية المتعددة التقنيات', 'جامعة أخرى / معهد',
+]
+export function academicYearEnd(now = new Date()) {
+  const y = now.getMonth() >= 7 ? now.getFullYear() + 1 : now.getFullYear()
+  return new Date(y, 6, 31, 23, 59).getTime()
+}
+export async function submitStudent(uid, { university, matricule, fullName, card }, st) {
+  const auto = st?.autoVerify !== false
+  const student = {
+    status: auto ? 'verified' : 'pending', university, matricule, fullName, card,
+    discount: st?.discount ?? 30, submittedAt: Date.now(), verifiedAt: auto ? Date.now() : null, expires: academicYearEnd(),
+  }
+  await store.update(`users/${uid}`, { student, updatedAt: Date.now() })
+  if (!auto) await store.set(`students/${uid}`, { uid, ...student, card: '' })
+  return student
+}
+export const studentActive = (u, st) => !!(st?.enabled !== false && u?.student?.status === 'verified' && (!u.student.expires || u.student.expires > Date.now()))
+export async function reviewStudent(uid, approve, note = '') {
+  const u = await store.get(`users/${uid}`)
+  await store.update(`users/${uid}`, { student: { ...(u?.student || {}), status: approve ? 'verified' : 'rejected', verifiedAt: approve ? Date.now() : null, note } })
+  await store.remove(`students/${uid}`).catch(() => {})
+  audit('student', `${approve ? 'توثيق' : 'رفض'} بطاقة طالب (${u?.name || uid})`)
+}
+export const watchStudents = (cb) => store.watchList('students', { orderBy: ['submittedAt', 'desc'] }, cb)

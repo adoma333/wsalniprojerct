@@ -80,7 +80,7 @@ export default function Landing() {
         <div className="wrap stats-row reveal">
           <div className="stat-box"><Counter to={12} /><small>{tr('ولايات جزائرية', 'Algerian wilayas')}</small></div>
           <div className="stat-box"><Counter to={100} suffix="+" /><small>{tr('ريل إشهاري', 'Ad reels')}</small></div>
-          <div className="stat-box"><Counter to={5} suffix={tr(' دج', ' DA')} /><small>{tr('على كل مشاهدة كاملة', 'per full view')}</small></div>
+          <div className="stat-box"><Counter to={100} suffix={tr(' نقطة', ' pts')} /><small>{tr('على كل مشاهدة كاملة', 'per full view')}</small></div>
           <div className="stat-box"><Counter to={24} suffix="/7" /><small>{tr('دعم ومتابعة', 'Support')}</small></div>
         </div>
       </section>
@@ -97,7 +97,7 @@ export default function Landing() {
           <div className="cta-final">
             <img src="brand/logo.svg" alt="" style={{ width: 120, margin: '0 auto 20px', position: 'relative' }} />
             <h2>{tr('الكورسة الجاية علينا', 'Your next ride is on us')}</h2>
-            <p>{tr('حمّل وصلني دروك، شوف أول ريل واربح 5 دينار في بلاصتها', 'Download Wasalni, watch your first reel and earn 5 DA')}</p>
+            <p>{tr('حمّل وصلني دروك، شوف أول إشهار واربح 100 نقطة في بلاصتها', 'Download Wasalni, watch your first ad and earn 100 points')}</p>
             <div className="ctas" style={{ justifyContent: 'center' }}>
               <a className="store-btn glass" style={{ background: '#111' }} href={APK_RIDER} download><Smartphone size={26} /><span><small>{tr('حمّل للأندرويد', 'Download for')}</small><b>Android APK</b></span></a>
               <button className="store-btn glass" style={{ background: '#111' }} onClick={() => setIos(true)}><Apple size={26} /><span><small>{tr('حلّو على', 'Open on')}</small><b>iPhone</b></span></button>
@@ -154,7 +154,7 @@ function Hero({ onIos }) {
       <div className="grid-bg" />
       <div className="wrap hero-in">
         <div>
-          <span className="pill rise"><b>{tr('جديد', 'New')}</b>{tr('اربح 5 دينار على كل ريل تشوفو', 'Earn 5 DA for every reel')}</span>
+          <span className="pill rise"><b>{tr('جديد', 'New')}</b>{tr('اربح 100 نقطة على كل إشهار تشوفو', 'Earn 100 points for every ad')}</span>
           <h1 className="rise" style={{ animationDelay: '.1s' }}>
             {tr('كورستك', 'Your ride,')} <span className="rot"><span key={w} className="hl">{tr(...WORDS[w])}</span></span><br />
             {tr('مع وصلني', 'with Wasalni')}
@@ -176,7 +176,7 @@ function Hero({ onIos }) {
             <div className="notch" />
             <div className="scr"><CityMap /></div>
           </div>
-          <div className="float-card c1" style={{ top: 70, insetInlineStart: -10 }}><span className="fi" style={{ background: '#fff1e6', color: '#E8650A' }}><Gift size={20} /></span><span><b>+5 {tr('دج', 'DA')}</b><small>{tr('ربحتها من ريل', 'Earned from a reel')}</small></span></div>
+          <div className="float-card c1" style={{ top: 70, insetInlineStart: -10 }}><span className="fi" style={{ background: '#fff1e6', color: '#E8650A' }}><Gift size={20} /></span><span><b>+100 {tr('نقطة', 'pts')}</b><small>{tr('ربحتها من إشهار', 'Earned from an ad')}</small></span></div>
           <div className="float-card c2" style={{ top: 250, insetInlineEnd: -10, animationDelay: '-2s' }}><span className="fi" style={{ background: '#e8faf1', color: '#12B76A' }}><ShieldCheck size={20} /></span><span><b>{tr('شيفور موثّق', 'Verified driver')}</b><small>★ 4.9 • {tr('سامبول بيضاء', 'White Symbol')}</small></span></div>
           <div className="float-card" style={{ bottom: 150, insetInlineStart: -20, animationDelay: '-3.5s' }}><span className="fi" style={{ background: '#eaf3ff', color: '#2E90FA' }}><Clock size={20} /></span><span><b>{tr('يوصل في 3 دقايق', 'Arrives in 3 min')}</b><small>{tr('اقتصادي • 350 دج', 'Economy • 350 DA')}</small></span></div>
         </div>
@@ -234,7 +234,7 @@ function FreeRides() {
   const C = 2 * Math.PI * 25
   const steps = [
     [tr('شوف ريل إشهاري', 'Watch an ad reel'), tr('ريلز قصار كيما إنستغرام: جام، علّق، بارتاجي واستمتع.', 'Short reels like Instagram: like, comment, share.')],
-    [tr('اربح 5 دينار في بلاصتها', 'Earn 5 DA instantly'), tr('كي تكمّل المشاهدة يتزاد الكادو في رصيدك مع احتفال صغير 🎉', 'Reward lands in your balance the moment it ends 🎉')],
+    [tr('اربح 100 نقطة في بلاصتها', 'Earn 100 points instantly'), tr('كي تكمّل المشاهدة يتزاد الكادو في رصيدك مع احتفال صغير 🎉', 'Reward lands in your balance the moment it ends 🎉')],
     [tr('اطلب كورستك بلاش', 'Ride for free'), tr('اختار الخلاص بالنقاط كي تطلب، والكورسة تجيك بصفر دينار.', 'Choose points at checkout and pay nothing.')],
   ]
   return (
@@ -243,7 +243,7 @@ function FreeRides() {
         <div className="sec-head reveal">
           <span className="eyebrow"><Gift size={15} />{tr('حاجة جديدة', 'Exclusive')}</span>
           <h2>{tr('شوف. اربح. اركب بلاش.', 'Watch. Earn. Ride free.')}</h2>
-          <p>{tr('أول تطبيق نقل في الجزائر يحوّل الوقت تاعك لكورسات بلاش. كل ريل تكمّلو = 5 دينار في رصيد الكادوات.', 'The first ride app in Algeria that turns your time into free rides.')}</p>
+          <p>{tr('أول تطبيق نقل في الجزائر يحوّل الوقت تاعك لكورسات بلاش. كل إشهار تكمّلو = 100 نقطة، وتبدّلهم بكورسات بلاش.', 'The first ride app in Algeria that turns your time into free rides.')}</p>
         </div>
         <div className="steps reveal">
           <div>
@@ -392,7 +392,7 @@ function Testimonials() {
 }
 
 const FAQS = [
-  ['الكورسات البلاش صح ولا لا؟', 'صح. كل ريل إشهاري تشوفو حتى للخر يزيدلك 5 دينار في رصيد الكادوات، وكي يكفي الرصيد للسومة تختار الخلاص بالنقاط والكورسة تولي بلاش كاملة.'],
+  ['الكورسات البلاش صح ولا لا؟', 'صح. كل إشهار تشوفو حتى للخر يزيدلك 100 نقطة، وكي تكفي النقاط للسومة تختار الخلاص بالنقاط والكورسة تولي بلاش كاملة. وتقدر تبدّل النقاط لدراهم في البورتفاي.'],
   ['كيفاش نحمّل التطبيق في الآيفون؟', 'حل رابط التطبيق في Safari، اضغط على زر البارتاج واختار "إضافة إلى الشاشة الرئيسية" ويخدم كتطبيق كامل.'],
   ['كيفاش تتحسب السومة؟', 'حلّان العداد + سومة على كل كيلومتر + سومة على كل دقيقة على حساب نوع الطوموبيل، مع زيادة صغيرة في الليل ووقت الزحمة. السومة تبان قبل ما تأكد.'],
   ['كيفاش نولي شيفور؟', 'حمّل تطبيق شيفور وصلني، دخّل المعلومات تاعك وتاع الطوموبيل وحمّل الوثائق، ومن بعد المراجعة تبدا تخدم.'],

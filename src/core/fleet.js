@@ -5,6 +5,7 @@ import { route } from './geo.js'
 import { updateRide, store } from './api.js'
 
 const FIRST = ['محمد أمين', 'ياسين', 'رياض', 'وليد', 'سفيان', 'كريم', 'عبد القادر', 'بلال', 'نسيم', 'هشام', 'زكرياء', 'إسلام', 'أيمن', 'فاروق']
+const FIRST_F = ['أمينة', 'سارة', 'نسرين', 'خديجة', 'إيمان', 'ليندة', 'سميرة', 'وفاء', 'ريمة']
 const LAST = ['بن علي', 'بوزيد', 'حمادي', 'مرابط', 'بلقاسم', 'زروقي', 'بوعلام', 'شريف', 'بن يوسف', 'قادري']
 const CARS = {
   eco: [['رونو', 'سامبول'], ['داسيا', 'لوغان'], ['هيونداي', 'أكسنت'], ['كيا', 'بيكانتو'], ['شيفروليه', 'سايل']],
@@ -15,11 +16,11 @@ const CARS = {
 }
 const COLORS = ['بيضاء', 'كحلة', 'فضية', 'رمادية', 'زرقة', 'حمرة']
 
-export function virtualDriver(cls = 'eco') {
+export function virtualDriver(cls = 'eco', female = false) {
   const [make, model] = pick(CARS[cls] || CARS.eco)
   return {
     id: 'sim-' + Math.random().toString(36).slice(2, 8),
-    name: `${pick(FIRST)} ${pick(LAST)}`,
+    name: `${pick(female ? FIRST_F : FIRST)} ${pick(LAST)}`, female,
     phone: '+213' + pick(['5', '6', '7']) + Math.floor(10000000 + Math.random() * 89999999),
     rating: +(4.6 + Math.random() * 0.4).toFixed(1),
     trips: Math.floor(120 + Math.random() * 3000),
@@ -61,7 +62,7 @@ export async function runSimulation(rideId, getRide) {
       while (Date.now() < end) { await sleep(500); ride = await getRide(); if (!ride || ride.status !== 'searching') break }
       if (!ride || ride.status !== 'searching') { if (ride?.driver?.simulated !== true) return }
       else {
-        const d = virtualDriver(ride.classId)
+        const d = virtualDriver(ride.classId, !!ride.womenOnly)
         const a = Math.random() * Math.PI * 2, dist = 0.9 + Math.random() * 1.4
         const start = offsetPoint(ride.pickup.coords, Math.cos(a) * dist, Math.sin(a) * dist)
         const toPickup = await route([start, ride.pickup.coords])

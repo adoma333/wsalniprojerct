@@ -96,3 +96,4 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 
 .feed-item + .feed-item { border-top: 1px solid var(--line); }
 .calc { background: var(--card-2); border-radius: 18px; padding: 16px; border: 1px solid var(--line); }
 .range { width: 100%; accent-color: var(--brand); }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; animation: pd 1.6s infinite; box-shadow: 0 0 0 0 rgba(18,183,106,.6); }

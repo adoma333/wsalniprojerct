@@ -7,6 +7,8 @@ service cloud.firestore {
     function me(uid) { return signedIn() && request.auth.uid == uid; }
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
     function onlyChanges(keys) { return changed().hasOnly(keys); }
+    function cfg() { return get(/databases/$(database)/documents/settings/app).data; }
+    function pointValue() { return cfg().get('rewards', {}).get('pointValue', 5); }
 
     // إعدادات المنصة: قراءة للجميع، تعديل للمدير
     match /settings/{id} { allow read: if true; allow write: if isAdmin(); }
@@ -18,10 +20,10 @@ service cloud.firestore {
       allow read: if me(uid) || isAdmin();
       allow create: if me(uid) && request.resource.data.points == 0 && request.resource.data.wallet == 0;
       allow update: if isAdmin()
-        || (me(uid) && !changed().hasAny(['wallet', 'points', 'earnedTotal', 'blocked']))
+        || (me(uid) && !changed().hasAny(['wallet', 'points', 'earnedTotal', 'blocked', 'student', 'lastTopup', 'lastConvert']))
         // مكافأة ريل: زيادة النقاط بقيمة المكافأة مع إنشاء سجل مشاهدة جديد في نفس العملية
         || (me(uid) && onlyChanges(['points', 'earnedTotal', 'viewsToday', 'viewsDay', 'lastView', 'updatedAt'])
-            && request.resource.data.points - resource.data.points <= 50
+            && request.resource.data.points - resource.data.points <= 1000
             && request.resource.data.points > resource.data.points
             && existsAfter(/databases/$(database)/documents/users/$(uid)/views/$(request.resource.data.lastView))
             && !exists(/databases/$(database)/documents/users/$(uid)/views/$(request.resource.data.lastView)))
@@ -29,6 +31,20 @@ service cloud.firestore {
         || (me(uid) && onlyChanges(['wallet', 'lastVoucher', 'updatedAt'])
             && request.resource.data.wallet - resource.data.wallet == get(/databases/$(database)/documents/vouchers/$(request.resource.data.lastVoucher)).data.amount
             && !get(/databases/$(database)/documents/vouchers/$(request.resource.data.lastVoucher)).data.used)
+        // تحويل النقاط إلى رصيد بسعر الصرف الحالي (يحدده المدير)
+        || (me(uid) && onlyChanges(['points', 'wallet', 'lastConvert', 'updatedAt'])
+            && request.resource.data.points < resource.data.points && request.resource.data.points >= 0
+            && request.resource.data.wallet - resource.data.get('wallet', 0) <= (resource.data.points - request.resource.data.points) * pointValue() / 100 + 0.01)
+        // شحن بالبطاقة (الوضع التجريبي فقط): الرصيد يزيد بمبلغ عملية شحن جديدة مقبولة
+        || (me(uid) && onlyChanges(['wallet', 'lastTopup', 'updatedAt'])
+            && !exists(/databases/$(database)/documents/topups/$(request.resource.data.lastTopup))
+            && getAfter(/databases/$(database)/documents/topups/$(request.resource.data.lastTopup)).data.uid == uid
+            && getAfter(/databases/$(database)/documents/topups/$(request.resource.data.lastTopup)).data.status == 'paid'
+            && request.resource.data.wallet - resource.data.get('wallet', 0) == getAfter(/databases/$(database)/documents/topups/$(request.resource.data.lastTopup)).data.amount)
+        // خصم الطالب: معلّق دائمًا، أو موثّق إذا كان التوثيق الفوري مفعّلًا
+        || (me(uid) && onlyChanges(['student', 'updatedAt'])
+            && (request.resource.data.student.status == 'pending'
+                || (request.resource.data.student.status == 'verified' && cfg().get('students', {}).get('autoVerify', true) == true)))
         // الدفع: إنقاص الرصيد فقط
         || (me(uid) && onlyChanges(['wallet', 'points', 'trips', 'updatedAt'])
             && request.resource.data.get('wallet', 0) <= resource.data.get('wallet', 0)
@@ -89,6 +105,17 @@ service cloud.firestore {
       allow create: if signedIn();
       allow update, delete: if isAdmin();
     }
+    // عمليات الشحن: البطاقة تُقبل فورًا فقط في الوضع التجريبي، وإلا تبقى معلّقة حتى يراجعها المدير
+    match /topups/{id} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.amount > 0 && request.resource.data.amount <= cfg().get('payments', {}).get('max', 50000)
+        && (request.resource.data.status == 'pending'
+            || (request.resource.data.status == 'paid' && cfg().get('payments', {}).get('demo', true) == true && request.resource.data.method in ['edahabia', 'cib']));
+      allow update, delete: if isAdmin();
+    }
+    match /students/{uid} { allow create, update: if me(uid) || isAdmin(); allow read, delete: if isAdmin(); }
+    match /audit/{id} { allow read, create: if isAdmin(); allow update, delete: if false; }
     match /sos/{id} { allow create: if signedIn(); allow read, update, delete: if isAdmin(); }
     match /referrals/{id} { allow create: if signedIn(); allow read, update, delete: if isAdmin(); }
   }

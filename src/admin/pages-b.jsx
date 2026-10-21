@@ -4,7 +4,7 @@ import { Switch, toast, Empty, Avatar } from '@/ui/kit.jsx'
 import { ClassCar, Coin } from '@/ui/art.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
 import { money, num, dateTime, timeAgo, compressImage, copy, compact } from '@/core/util.js'
-import { BRAND, DEFAULT_SETTINGS } from '@/core/config.js'
+import { BRAND, DEFAULT_SETTINGS, pointsToDa } from '@/core/config.js'
 import { MODE } from '@/core/store.js'
 import { quote } from '@/core/pricing.js'
 import { builtinReels } from '@/core/reels.js'
@@ -69,7 +69,7 @@ export function Pricing() {
 }
 
 // ===== الريلز =====
-const EMPTY_REEL = { advertiser: '', handle: '', title: '', caption: '', cta: 'اعرف أكثر', link: '', image: '', video: '', tint: '#E8650A', reward: '', duration: '', active: true, order: 0 }
+const EMPTY_REEL = { advertiser: '', handle: '', title: '', caption: '', cta: 'اعرف أكثر', link: '', image: '', video: '', tint: '#E8650A', points: '', duration: '', active: true, order: 0 }
 export function ReelsAdmin() {
   const { reels, reelStats } = useData()
   const { settings } = useApp()
@@ -83,9 +83,9 @@ export function ReelsAdmin() {
     <>
       <div className="kpis">
         <div className="kpi hero"><span className="ki"><Eye size={20} /></span><b className="num">{num(totalViews)}</b><small>مشاهدات مكتملة</small></div>
-        <div className="kpi"><span className="ki" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}><Coin size={20} /></span><b className="num">{money(totalViews * settings.rewards.perReel)}</b><small>مكافآت موزعة تقريبًا</small></div>
-        <div className="kpi"><span className="ki" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}><Heart size={20} /></span><b className="num">{num(reelStats.reduce((s, r) => s + (r.likes || 0), 0))}</b><small>إعجابات</small></div>
-        <div className="kpi"><span className="ki" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}><Share2 size={20} /></span><b className="num">{num(reelStats.reduce((s, r) => s + (r.shares || 0), 0))}</b><small>مشاركات</small></div>
+        <div className="kpi"><span className="ki" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}><Coin size={20} /></span><b className="num">{num(totalViews * settings.rewards.pointsPerReel)}</b><small>نقاط موزعة ≈ {money(pointsToDa(totalViews * settings.rewards.pointsPerReel, settings.rewards))}</small></div>
+        <div className="kpi"><span className="ki" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}><Share2 size={20} /></span><b className="num">{num(reelStats.reduce((s, r) => s + (r.clicks || 0), 0))}</b><small>نقرات على الزر</small></div>
+        <div className="kpi"><span className="ki" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}><Sparkles size={20} /></span><b className="num">{reels.filter((r) => r.active !== false).length}</b><small>إعلانات نشطة</small></div>
       </div>
       <div className="toolbar mt">
         <div className="seg"><button className={tab === 'custom' ? 'active' : ''} onClick={() => setTab('custom')}>إعلاناتي ({reels.length})</button><button className={tab === 'builtin' ? 'active' : ''} onClick={() => setTab('builtin')}>المدمجة (100)</button></div>
@@ -106,7 +106,7 @@ export function ReelsAdmin() {
               <div className="bd">
                 <b className="small">{r.advertiser}</b>
                 <div className="tiny muted" style={{ height: 34, overflow: 'hidden' }}>{r.caption}</div>
-                <div className="flex tiny muted mt" style={{ justifyContent: 'space-between' }}><span><Eye size={12} /> {compact(s.views || 0)}</span><span><Heart size={12} /> {compact((r.baseLikes || 0) + (s.likes || 0))}</span><span><MessageCircle size={12} /> {compact((r.baseComments || 0) + (s.comments || 0))}</span><span className="badge">+{r.reward || settings.rewards.perReel}</span></div>
+                <div className="flex tiny muted mt" style={{ justifyContent: 'space-between' }}><span><Eye size={12} /> {compact(s.views || 0)}</span><span><Share2 size={12} /> {compact(s.clicks || 0)}</span><span className="badge">+{r.points || settings.rewards.pointsPerReel} نقطة</span></div>
                 {!r.builtin && <div className="flex mt"><button className="btn btn-xs btn-ghost grow" onClick={() => setEdit(r)}><Edit3 size={14} />تعديل</button><button className="btn btn-xs btn-danger" onClick={async () => { if (confirm('حذف الإعلان؟')) { await deleteReel(r.id); toast('تم الحذف') } }}><Trash2 size={14} /></button></div>}
               </div>
             </div>
@@ -123,7 +123,7 @@ function ReelEditor({ r, onClose }) {
   const save = async () => {
     if (!f.advertiser || !f.caption) return toast('أدخل اسم المعلن والنص', 'error')
     const { id, ...data } = f
-    for (const k of ['reward', 'duration']) if (data[k] === '') delete data[k]
+    for (const k of ['points', 'duration']) if (data[k] === '') delete data[k]
     await saveReel(id, data)
     toast('تم حفظ الإعلان ✅', 'success'); onClose()
   }
@@ -141,7 +141,7 @@ function ReelEditor({ r, onClose }) {
           <div className="form-grid">
             <Field label="رابط الزر"><input className="input" value={f.link} onChange={set('link')} dir="ltr" placeholder="https://" /></Field>
             <Field label="رابط فيديو (اختياري)" hint="MP4 مباشر"><input className="input" value={f.video} onChange={set('video')} dir="ltr" /></Field>
-            <Field label="المكافأة (دج)" hint="فارغ = الافتراضي"><input className="input" type="number" value={f.reward} onChange={set('reward')} /></Field>
+            <Field label="النقاط لكل مشاهدة" hint="فارغ = الافتراضي"><input className="input" type="number" value={f.points} onChange={set('points')} /></Field>
             <Field label="مدة المشاهدة (ث)" hint="فارغ = الافتراضي"><input className="input" type="number" value={f.duration} onChange={set('duration')} /></Field>
             <Field label="الترتيب"><input className="input" type="number" value={f.order} onChange={set('order')} /></Field>
             <Field label="لون الطبقة"><input className="input" type="color" value={f.tint} onChange={set('tint')} style={{ padding: 4 }} /></Field>
@@ -172,25 +172,40 @@ export function RewardsAdmin() {
   const { users } = useData()
   const [r, setR] = useState(settings.rewards)
   const top = [...users].sort((a, b) => (b.earnedTotal || 0) - (a.earnedTotal || 0)).slice(0, 10)
+  const S = (k) => (e) => setR({ ...r, [k]: N(e.target.value) })
+  const outstanding = users.reduce((t, u) => t + (u.points || 0), 0)
+  const perDay = r.dailyLimit * r.pointsPerReel
   return (
     <div className="grid-main" style={{ marginTop: 0 }}>
-      <div className="panel-card">
-        <h3>إعدادات المكافآت<span className="sp" /><button className="btn btn-primary btn-sm" onClick={async () => { await saveSettings({ rewards: r }); toast('تم الحفظ ✅', 'success') }}><Save size={16} />حفظ</button></h3>
-        <div className="form-grid">
-          <Field label="مكافأة كل ريل (دج)"><input className="input" type="number" value={r.perReel} onChange={(e) => setR({ ...r, perReel: N(e.target.value) })} /></Field>
-          <Field label="مدة المشاهدة المطلوبة (ثانية)"><input className="input" type="number" value={r.watchSeconds} onChange={(e) => setR({ ...r, watchSeconds: N(e.target.value) })} /></Field>
-          <Field label="الحد اليومي للمشاهدات"><input className="input" type="number" value={r.dailyLimit} onChange={(e) => setR({ ...r, dailyLimit: N(e.target.value) })} /></Field>
-          <Field label="مكافأة الإحالة"><input className="input" type="number" value={r.referralBonus} onChange={(e) => setR({ ...r, referralBonus: N(e.target.value) })} /></Field>
-        </div>
-        <label className="flex mt"><Switch on={r.builtinReels} onChange={(v) => setR({ ...r, builtinReels: v })} />إظهار الـ 100 ريل المدمجة</label>
-        <div className="calc mt small">
-          <b>حساب سريع:</b> زبون يشاهد {r.dailyLimit} ريل يوميًا يربح <b className="num">{money(r.dailyLimit * r.perReel)}</b> في اليوم ≈ <b className="num">{Math.floor((r.dailyLimit * r.perReel) / 300)}</b> رحلة اقتصادية مجانية.
+      <div className="col">
+        <div className="panel-card">
+          <h3>نظام النقاط<span className="sp" /><button className="btn btn-primary btn-sm" onClick={async () => { await saveSettings({ rewards: r }); toast('تم الحفظ ✅', 'success') }}><Save size={16} />حفظ</button></h3>
+          <div className="form-grid">
+            <Field label="نقاط كل إعلان"><input className="input" type="number" value={r.pointsPerReel} onChange={S('pointsPerReel')} /></Field>
+            <Field label="قيمة 100 نقطة (دج)" hint="يمكن تغييرها في أي وقت دون أن يلاحظ الزبون — الزبون يرى النقاط فقط"><input className="input" type="number" step="0.5" value={r.pointValue} onChange={S('pointValue')} /></Field>
+            <Field label="مدة المشاهدة المطلوبة (ثانية)"><input className="input" type="number" value={r.watchSeconds} onChange={S('watchSeconds')} /></Field>
+            <Field label="الحد اليومي للإعلانات"><input className="input" type="number" value={r.dailyLimit} onChange={S('dailyLimit')} /></Field>
+            <Field label="أدنى تحويل (نقطة)"><input className="input" type="number" value={r.minConvert} onChange={S('minConvert')} /></Field>
+            <Field label="مكافأة الإحالة (نقطة)"><input className="input" type="number" value={r.referralBonus} onChange={S('referralBonus')} /></Field>
+          </div>
+          <label className="between mt"><span><b className="small">التحويل التلقائي إلى الرصيد</b><div className="tiny muted">عندما يصل الزبون إلى الحد التالي تتحول نقاطه تلقائيًا إلى دينار في البورتفاي</div></span><Switch on={r.autoConvert} onChange={(v) => setR({ ...r, autoConvert: v })} /></label>
+          {r.autoConvert && <Field label="التحويل عند (نقطة)"><input className="input" type="number" value={r.autoConvertAt} onChange={S('autoConvertAt')} /></Field>}
+          <label className="flex mt"><Switch on={r.builtinReels} onChange={(v) => setR({ ...r, builtinReels: v })} />إظهار الـ 100 إعلان المدمجة</label>
+          <div className="calc mt small">
+            <b>حساب سريع:</b> 100 نقطة = <b className="num">{money(r.pointValue)}</b> • إعلان واحد = <b className="num">{money(pointsToDa(r.pointsPerReel, r))}</b> • زبون يشاهد {r.dailyLimit} إعلان يربح <b className="num">{num(perDay)}</b> نقطة = <b className="num">{money(pointsToDa(perDay, r))}</b> في اليوم ≈ <b className="num">{Math.floor(pointsToDa(perDay, r) / 200)}</b> كورسة مجانية.
+          </div>
         </div>
       </div>
-      <div className="panel-card">
-        <h3>الأكثر ربحًا</h3>
-        {top.length === 0 && <Empty title="لا يوجد بعد" />}
-        {top.map((u, i) => <div key={u.id} className="feed-item"><b className="num" style={{ width: 22 }}>{i + 1}</b><Avatar name={u.name} size={34} /><span className="grow small">{u.name}</span><b className="num small" style={{ color: 'var(--brand)' }}>{money(u.earnedTotal || 0)}</b></div>)}
+      <div className="col">
+        <div className="kpis" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div className="kpi hero"><span className="ki"><Coin size={20} /></span><b className="num">{compact(outstanding)}</b><small>نقاط عند الزبائن</small></div>
+          <div className="kpi"><span className="ki" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}><Calculator size={20} /></span><b className="num">{money(pointsToDa(outstanding, r))}</b><small>القيمة الحالية (التزام)</small></div>
+        </div>
+        <div className="panel-card">
+          <h3>الأكثر ربحًا</h3>
+          {top.length === 0 && <Empty title="لا يوجد بعد" />}
+          {top.map((u, i) => <div key={u.id} className="feed-item"><b className="num" style={{ width: 22 }}>{i + 1}</b><Avatar name={u.name} size={34} /><span className="grow small">{u.name}</span><b className="num small" style={{ color: 'var(--brand)' }}>{num(u.points || 0)} نقطة</b></div>)}
+        </div>
       </div>
     </div>
   )

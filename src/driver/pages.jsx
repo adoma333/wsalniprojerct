@@ -4,6 +4,7 @@ import {
   Users, CalendarClock, ArrowDownLeft, ArrowUpRight, TrendingUp, Clock, Wallet as WalletIco, MapPin, Banknote, Info,
 } from 'lucide-react'
 import { Page, Empty, Row, Sheet, toast, Avatar, Stars, useNav } from '@/ui/kit.jsx'
+import Scanner from '@/ui/Scanner.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
 import { ClassCar } from '@/ui/art.jsx'
 import { StatusBadge, RouteSummary, Plate, ChatPage } from '@/ui/ride-ui.jsx'
@@ -317,23 +318,25 @@ export function Vehicle() {
 export function Documents() {
   const { uid, driver } = useApp()
   const docs = driver.docs || {}
-  const up = (k) => async (e) => {
-    const f = e.target.files[0]
-    if (!f) return
-    await updateDriver(uid, { docs: { ...docs, [k]: await compressImage(f, 760, 0.62) } })
-    toast(tr('الوثيقة تبدّلت', 'Document updated'), 'success')
+  const [scan, setScan] = useState(null)
+  const save = async (img) => {
+    const k = scan
+    setScan(null)
+    await updateDriver(uid, { docs: { ...docs, [k]: img }, docsUpdatedAt: Date.now() })
+    toast(tr('الوثيقة تبدّلت ✓', 'Document updated ✓'), 'success')
   }
   return (
     <Page title={tr('الوثائق', 'Documents')}>
       <div className="col">
         {DOC_LIST.map(([k, label, I]) => (
-          <label key={k} className="card" style={{ overflow: 'hidden', cursor: 'pointer' }}>
-            {docs[k] ? <img src={docs[k]} alt="" style={{ width: '100%', height: 150, objectFit: 'cover' }} /> : <div style={{ height: 110, display: 'grid', placeItems: 'center', background: 'var(--card-2)' }}><I size={34} color="var(--faint)" /></div>}
-            <div className="between" style={{ padding: 14 }}><b>{label}</b>{docs[k] ? <span className="badge green">{tr('محمّل', 'Uploaded')}</span> : <span className="badge red">{tr('لازم', 'Required')}</span>}</div>
-            <input type="file" accept="image/*" hidden onChange={up(k)} />
-          </label>
+          <button key={k} className="card" style={{ overflow: 'hidden', textAlign: 'start', padding: 0 }} onClick={() => setScan(k)}>
+            {docs[k] ? <img src={docs[k]} alt="" style={{ width: '100%', height: 150, objectFit: 'cover', display: 'block' }} /> : <div style={{ height: 110, display: 'grid', placeItems: 'center', background: 'var(--card-2)' }}><I size={34} color="var(--faint)" /></div>}
+            <div className="between" style={{ padding: 14 }}><b>{label}</b>{docs[k] ? <span className="badge green"><CheckCircle2 size={12} />{tr('موثّقة', 'Verified')}</span> : <span className="badge red">{tr('لازم', 'Required')}</span>}</div>
+          </button>
         ))}
       </div>
+      <Scanner open={!!scan} onClose={() => setScan(null)} onDone={save} shape={scan === 'carPhoto' ? 'wide' : 'card'} title={DOC_LIST.find(([k]) => k === scan)?.[1]}
+        steps={[tr('قراءة الوثيقة', 'Reading document'), tr('التحقق من الصلاحية', 'Checking validity'), tr('تحديث الملف', 'Updating profile')]} successText={tr('الوثيقة مقبولة ✓', 'Document accepted ✓')} />
     </Page>
   )
 }

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Menu, Zap, Crosshair, Layers, Phone, MessageCircle, Navigation, MapPin, Flag, Banknote, Wallet, Clock, Star, X, ShieldAlert, Map as MapIco,
   CalendarClock, BadgeDollarSign, Gift, Users, Bell, LifeBuoy, Info, Check, Route as RouteIco, Coins,
+  KeyRound,
 } from 'lucide-react'
 import MapView from '@/map/MapView.jsx'
 import MapControls, { useMapPrefs } from '@/map/MapControls.jsx'
@@ -277,6 +278,8 @@ function RequestCard({ req, me, settings, onAccept, onDecline }) {
       <div className="between">
         <div className="flex">
           <span className="badge" style={{ background: 'var(--brand)', color: '#fff' }}><ClassCar type={req.classId} w={26} />{req.className}</span>
+          {req.offer && <span className="badge" style={{ background: '#FEF0C7', color: '#93370D' }}>{tr('سومة مقترحة', 'Offer')}</span>}
+          {req.student && <span className="badge" style={{ background: '#EEF4FF', color: '#3538CD' }}>🎓</span>}
           {req.payment !== 'cash' && <span className="badge green">{req.payment === 'points' ? tr('مدفوعة بالنقاط', 'Points') : tr('محفظة', 'Wallet')}</span>}
         </div>
         <div className="req-timer">
@@ -292,6 +295,7 @@ function RequestCard({ req, me, settings, onAccept, onDecline }) {
       </div>
       <RouteSummary ride={req} compact />
       <div className="flex small" style={{ marginTop: 10 }}><Avatar name={req.riderName} size={30} /><b>{req.riderName}</b><Star size={13} fill="var(--gold)" color="var(--gold)" /><span className="num">{req.riderRating || 5}</span></div>
+      {req.forOther && <div className="small" style={{ marginTop: 8, padding: '8px 12px', borderRadius: 12, background: 'var(--info-bg, #EFF8FF)' }}>👤 {tr('الراكب', 'Passenger')}: <b>{req.forOther.name}</b> <span className="num">{req.forOther.phone}</span></div>}
       {req.note && <div className="small" style={{ marginTop: 8, padding: '8px 12px', borderRadius: 12, background: 'var(--warning-bg)' }}>📝 {req.note}</div>}
       <div className="flex mt">
         <button className="btn btn-ghost" onClick={onDecline}><X size={20} /></button>
@@ -318,8 +322,11 @@ function ActiveRide({ ride, me, approach, nav, uid, driver, settings }) {
     arrived: { t: tr('نستنى الزبون', 'Waiting for rider'), btn: tr('ابدا الكورسة', 'Start trip'), next: { status: 'ongoing', startedAt: Date.now(), phaseAt: Date.now() }, color: 'btn-success' },
     ongoing: { t: tr('رايح للبلاصة', 'Driving to destination'), btn: tr('كمّل الكورسة', 'Complete trip'), next: null, color: 'btn-dark' },
   }[ride.status]
-  const advance = async () => {
+  const [pinOpen, setPinOpen] = useState(false)
+  const [pin, setPin] = useState('')
+  const advance = async (force) => {
     haptic('medium')
+    if (ride.status === 'arrived' && ride.pin && force !== true) { setPin(''); setPinOpen(true); return }
     if (ride.status === 'ongoing') {
       const { net, commission } = driverNet(ride.fare.total, settings.pricing)
       await updateRide(ride.id, { status: 'completed', completedAt: Date.now(), driverNet: net, commission, driverLoc: { coords: ride.dropoff.coords, heading: 0 } })
@@ -360,7 +367,13 @@ function ActiveRide({ ride, me, approach, nav, uid, driver, settings }) {
         <a href={mapsLink(target.coords)} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}><button style={{ width: '100%' }}><MapIco size={20} />{tr('GPS', 'Navigate')}</button></a>
         <button className="red" onClick={() => setSos(true)}><ShieldAlert size={20} />{tr('طوارئ', 'SOS')}</button>
       </div>
-      <button className={`btn ${step.color} btn-block btn-lg mt`} onClick={advance}>{step.btn}</button>
+      {ride.forOther && <div className="small" style={{ padding: '8px 12px', borderRadius: 12, background: 'var(--info-bg, #EFF8FF)', marginTop: 6 }}>👤 {tr('الراكب', 'Passenger')}: <b>{ride.forOther.name}</b> • <a className="num" href={`tel:${ride.forOther.phone}`}>{ride.forOther.phone}</a></div>}
+      <button className={`btn ${step.color} btn-block btn-lg mt`} onClick={advance}>{ride.status === 'arrived' && ride.pin ? <><KeyRound size={19} />{tr('دخّل الكود وابدا', 'Enter PIN & start')}</> : step.btn}</button>
+      <Sheet open={pinOpen} onClose={() => setPinOpen(false)} title={tr('كود الكورسة', 'Trip PIN')} sub={tr('طلب من الزبون الكود اللي ظاهر عندو في التطبيق', 'Ask the rider for the 4-digit PIN')}>
+        <input className="input num" autoFocus inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} style={{ textAlign: 'center', letterSpacing: 14, fontSize: 30, fontWeight: 800, height: 68, marginTop: 6, direction: 'ltr' }} placeholder="••••" />
+        {ride.simulated && <div className="tiny muted center mt">{tr('تجريبي: الكود هو', 'Demo PIN')} <b className="num">{ride.pin}</b></div>}
+        <button className="btn btn-success btn-block btn-lg mt" disabled={pin.length !== 4} onClick={() => { if (pin === ride.pin) { setPinOpen(false); advance(true) } else { haptic('heavy'); toast(tr('الكود غالط', 'Wrong PIN'), 'error'); setPin('') } }}>{tr('ابدا الكورسة', 'Start trip')}</button>
+      </Sheet>
       {ride.status !== 'ongoing' && <button className="btn btn-block muted" style={{ '--h': '42px', marginTop: 6 }} onClick={() => setCancel(true)}>{tr('ألغي الكورسة', 'Cancel ride')}</button>}
       <Sheet open={cancel} onClose={() => setCancel(false)} title={tr('تلغي الكورسة؟', 'Cancel ride?')} sub={tr('الإلغاء بزاف ينقّص من التقييم تاعك ومن الطلبات', 'Frequent cancellations affect your rating')}>
         <div className="col" style={{ gap: 8 }}>

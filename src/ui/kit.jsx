@@ -265,3 +265,15 @@ export function Confetti({ run }) {
 }
 
 export const T = tr
+
+// شاشة الصيانة (تُفعّل من لوحة التحكم)
+export function Maintenance({ message, support }) {
+  return (
+    <div className="page fade" style={{ justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: 30, gap: 14 }}>
+      <img src="brand/mark.svg" alt="" style={{ width: 84 }} className="pop" />
+      <h2 style={{ margin: 0 }}>{tr('راجعين قريب 🛠️', 'Back soon 🛠️')}</h2>
+      <p className="muted" style={{ maxWidth: 320, margin: 0 }}>{message}</p>
+      {support?.whatsapp && <a className="btn btn-ghost" href={`https://wa.me/${support.whatsapp}`}>{tr('تواصل مع الدعم', 'Contact support')}</a>}
+    </div>
+  )
+}

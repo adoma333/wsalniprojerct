@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Menu, Crosshair, Layers, Search, Clock, Home as HomeIco, Briefcase, Plus, MapPin, Gift, Car, CalendarClock, Package, Wallet, Banknote,
   Ticket, MessageCircle, Phone, Share2, ShieldAlert, X, ChevronDown, Map as MapIco, Bell, Users, LifeBuoy, Settings, History, Star, Check,
-  Sparkles, Zap, StickyNote, Navigation, Info,
+  Sparkles, Zap, StickyNote, Navigation, Info, GraduationCap, HandCoins, UserRound, KeyRound, Minus,
 } from 'lucide-react'
 import MapView from '@/map/MapView.jsx'
 import MapControls, { useMapPrefs } from '@/map/MapControls.jsx'
@@ -17,7 +17,7 @@ import { currentPosition, reverse, route, weather } from '@/core/geo.js'
 import { quote, demandFactor } from '@/core/pricing.js'
 import { spawnCars, stepCars, runSimulation } from '@/core/fleet.js'
 import {
-  watchRiderRides, createRide, cancelRide, updateRide, settleRide, watchOnlineDrivers, checkPromo, store, sos, watchNotifications, updateUser,
+  watchRiderRides, createRide, cancelRide, updateRide, settleRide, watchOnlineDrivers, checkPromo, store, sos, watchNotifications, updateUser, studentActive,
 } from '@/core/api.js'
 
 const ACTIVE = ['searching', 'accepted', 'arrived', 'ongoing']
@@ -242,7 +242,7 @@ export default function Home() {
         {stage === 'completed' && <RatePanel ride={ride} />}
       </DragPanel>
 
-      <RiderDrawer open={drawer} onClose={() => setDrawer(false)} user={user} nav={nav} notifDot={notifDot} />
+      <RiderDrawer settings={settings} open={drawer} onClose={() => setDrawer(false)} user={user} nav={nav} notifDot={notifDot} />
     </div>
   )
 }
@@ -290,18 +290,27 @@ function IdlePanel({ user, wx, onSearch, onPlace, rides, nav, settings }) {
       )}
       <div className="quick">
         <button onClick={() => onSearch('dropoff')}><span className="qi"><ClassCar type="eco" w={52} /></span>{tr('كورسة', 'Ride')}</button>
-        <button onClick={() => onSearch('dropoff', { classId: 'moto' })}><span className="qi"><ClassCar type="moto" w={52} /></span>{tr('توصيل', 'Delivery')}</button>
-        <button onClick={() => onSearch('dropoff', { schedule: true })}><span className="qi"><CalendarClock size={28} color="var(--brand)" /></span>{tr('برمج', 'Schedule')}</button>
-        <button onClick={() => nav.push('reels')}><span className="qi" style={{ background: 'var(--grad)', color: '#fff' }}><Gift size={28} /><span className="new num">+{settings.rewards.pointsPerReel}</span></span>{tr('اربح', 'Earn')}</button>
+        {settings.features?.delivery !== false && <button onClick={() => onSearch('dropoff', { classId: 'moto' })}><span className="qi"><ClassCar type="moto" w={52} /></span>{tr('توصيل', 'Delivery')}</button>}
+        {settings.features?.schedule !== false && <button onClick={() => onSearch('dropoff', { schedule: true })}><span className="qi"><CalendarClock size={28} color="var(--brand)" /></span>{tr('برمج', 'Schedule')}</button>}
+        {settings.features?.reels !== false && <button onClick={() => nav.push('reels')}><span className="qi" style={{ background: 'var(--grad)', color: '#fff' }}><Gift size={28} /><span className="new num">+{settings.rewards.pointsPerReel}</span></span>{tr('اربح', 'Earn')}</button>}
       </div>
-      <button className="reward-banner" onClick={() => nav.push('reels')}>
+      {settings.zones?.[user.city]?.enabled === false && (
+        <div className="card pad flex mt" style={{ background: 'var(--danger-bg)', boxShadow: 'none' }}><Info size={20} color="var(--danger)" /><span className="small"><b>{tr('الخدمة ماراهيش متوفرة دروك في ولايتك', 'Service is paused in your city')}</b><br />{tr('راح نرجعو قريب إن شاء الله', 'We will be back soon')}</span></div>
+      )}
+      {settings.features?.reels !== false && <button className="reward-banner" onClick={() => nav.push('reels')}>
         <span className="rb-ico"><Sparkles size={26} /></span>
         <span style={{ flex: 1, position: 'relative', zIndex: 1 }}>
           <b>{pct >= 100 ? tr('الكورسة البلاش تاعك واجدة! 🎉', 'Your free ride is ready! 🎉') : tr('اركب بلاش كي تشوف الريلز', 'Ride free by watching reels')}</b>
           <small>{tr(`كل إشهار كامل = ${settings.rewards.pointsPerReel} نقطة • عندك ${num(user.points || 0)} نقطة`, `Each ad = ${settings.rewards.pointsPerReel} pts • You have ${num(user.points || 0)}`)}</small>
           <span className="rb-bar"><i style={{ width: pct + '%' }} /></span>
         </span>
-      </button>
+      </button>}
+      {settings.features?.students !== false && settings.students?.enabled !== false && user.student?.status !== 'verified' && (
+        <button className="stu-banner" onClick={() => nav.push('student')}>
+          <GraduationCap size={26} />
+          <span><b>{tr(`طالب؟ -${settings.students.discount}% على كل كورسة`, `Student? -${settings.students.discount}% every ride`)}</b><small>{tr('صوّر بطاقتك وتتفعّل في ثانيتين', 'Scan your card, activated in seconds')}</small></span>
+        </button>
+      )}
     </div>
   )
 }
@@ -336,9 +345,19 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
   const [note, setNote] = useState('')
   const [when, setWhen] = useState('')
   const [busy, setBusy] = useState(false)
+  const [offer, setOffer] = useState(null) // سومة مقترحة من الزبون
+  const [offerOpen, setOfferOpen] = useState(false)
+  const [other, setOther] = useState(null) // {name, phone}
+  const [otherOpen, setOtherOpen] = useState(false)
+  const [women, setWomen] = useState(false)
+  const ft = settings.features || {}
   const demand = demandFactor(0, carsN)
-  const quotes = useMemo(() => Object.fromEntries(pricing.classes.map((c) => [c.id, rt ? quote(c, rt, pricing, { demand, promo }) : null])), [rt, promo, pricing])
-  const q = quotes[cls]
+  const stu = ft.students !== false && studentActive(user, settings.students) ? { pct: settings.students.discount, max: settings.students.maxDiscount } : null
+  const zone = settings.zones?.[user.city]
+  const quotes = useMemo(() => Object.fromEntries(pricing.classes.map((c) => [c.id, rt ? quote(c, rt, pricing, { demand, promo, student: stu, zone }) : null])), [rt, promo, pricing, stu?.pct, zone?.mult])
+  const q0 = quotes[cls]
+  const q = q0 && offer ? { ...q0, total: offer, offered: true } : q0
+  useEffect(() => { setOffer(null) }, [cls])
   const points = user.points || 0, wallet = user.wallet || 0
   useEffect(() => {
     if (!q) return
@@ -348,6 +367,7 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
 
   const book = async () => {
     if (!q) return
+    if (settings.zones?.[user.city]?.enabled === false) return toast(tr('الخدمة ماراهيش متوفرة دروك في ولايتك', 'Service paused in your city'), 'error')
     setBusy(true)
     try {
       const c = pricing.classes.find((x) => x.id === cls)
@@ -355,7 +375,8 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
         riderId: uid, riderName: user.name, riderPhone: user.phone, riderRating: user.rating || 5, city: user.city,
         pickup: strip(draft.pickup), dropoff: strip(draft.dropoff), stops: (draft.stops || []).map(strip),
         route: { coords: rt.coords, distanceKm: +rt.distanceKm.toFixed(2), durationMin: +rt.durationMin.toFixed(1) },
-        classId: cls, className: c.ar, fare: q, payment: pay, pointsCost: pay === 'points' ? daToPoints(q.total, settings.rewards) : 0, promoCode: promo?.code || '', note, scheduledAt: when ? new Date(when).getTime() : null,
+        classId: cls, className: c.ar, fare: q, payment: pay, offer: offer || null, forOther: other, womenOnly: women,
+        pin: ft.tripPin !== false && user.prefs?.tripPin !== false ? String(1000 + Math.floor(Math.random() * 9000)) : null, student: !!stu, pointsCost: pay === 'points' ? daToPoints(q.total, settings.rewards) : 0, promoCode: promo?.code || '', note, scheduledAt: when ? new Date(when).getTime() : null,
       })
       if (promo) store.set(`promos/${promo.code}`, { used: store.inc(1) }, true).catch(() => {})
       haptic('medium')
@@ -379,6 +400,7 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
         <div className="flex small muted" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
           <span className="badge gray"><Navigation size={12} /> <span className="num">{km(rt.distanceKm)}</span></span>
           <span className="badge gray"><Clock size={12} /> <span className="num">{mins(rt.durationMin)}</span></span>
+          {q?.student > 0 && <span className="badge" style={{ background: '#EEF4FF', color: '#3538CD' }}><GraduationCap size={13} />{tr('خصم الطالب', 'Student')} -<span className="num">{money(q.student)}</span></span>}
           {q?.surge > 1 && <span className="surge"><Zap size={13} />{q.timeKey === 'night' ? tr('سومة الليل', 'Night rate') : tr('وقت الزحمة', 'Peak time')} ×{q.surge}</span>}
         </div>
       )}
@@ -408,6 +430,9 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
       <div className="hscroll" style={{ marginBottom: 12 }}>
         <button className={`chip ${promo ? 'brand' : ''}`} onClick={() => setPromoOpen(true)}><Ticket size={15} />{promo ? promo.code : tr('كود تخفيض', 'Promo')}</button>
         <button className={`chip ${note ? 'brand' : ''}`} onClick={() => setNoteOpen(true)}><StickyNote size={15} />{note ? tr('ملاحظة ✓', 'Note ✓') : tr('ملاحظة للشيفور', 'Note')}</button>
+        {ft.offerPrice !== false && <button className={`chip ${offer ? 'brand' : ''}`} onClick={() => setOfferOpen(true)}><HandCoins size={15} />{offer ? <span className="num">{money(offer)}</span> : tr('اقترح سومتك', 'Offer fare')}</button>}
+        {ft.rideForOther !== false && <button className={`chip ${other ? 'brand' : ''}`} onClick={() => setOtherOpen(true)}><UserRound size={15} />{other ? other.name : tr('لشخص آخر', 'For someone')}</button>}
+        {ft.womenDrivers !== false && <button className={`chip ${women ? 'brand' : ''}`} onClick={() => { setWomen(!women); haptic(); if (!women) toast(tr('راح نقلبو على شيفورة مرا 👩', 'Looking for a woman driver 👩')) }}>👩 {tr('شيفورة مرا', 'Woman driver')}</button>}
         <button className={`chip ${when ? 'brand' : ''}`} onClick={() => setSchedOpen(true)}><CalendarClock size={15} />{when ? new Date(when).toLocaleString(isAr ? 'ar-DZ' : 'en', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : tr('برمج', 'Schedule')}</button>
       </div>
       <button className="btn btn-primary btn-block btn-lg" disabled={!q || busy} onClick={book}>
@@ -415,6 +440,8 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
       </button>
 
       <PromoSheet open={promoOpen} onClose={() => setPromoOpen(false)} onApply={applyPromo} />
+      {q0 && <OfferSheet open={offerOpen} onClose={() => setOfferOpen(false)} base={q0.total} min={Math.max(pricing.classes.find((c) => c.id === cls)?.min || 0, q0.total * 0.75)} step={pricing.roundTo || 10} value={offer} onApply={(v) => { setOffer(v); setOfferOpen(false) }} />}
+      <OtherSheet open={otherOpen} onClose={() => setOtherOpen(false)} value={other} onApply={(v) => { setOther(v); setOtherOpen(false) }} />
       <Sheet open={noteOpen} onClose={() => setNoteOpen(false)} title={tr('ملاحظة للشيفور', 'Note to driver')} sub={tr('مثال: راني قدام الفارماسي، معايا شنطة كبيرة', 'e.g. I am next to the pharmacy')}>
         <textarea className="input" value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder={tr('اكتب ملاحظتك…', 'Write a note…')} />
         <button className="btn btn-primary btn-block mt" onClick={() => setNoteOpen(false)}>{tr('حفظ', 'Save')}</button>
@@ -484,6 +511,49 @@ function CancelSheet({ open, onClose, ride }) {
   )
 }
 
+// ===== اقترح سومتك (مثل inDrive) =====
+function OfferSheet({ open, onClose, base, min, step, value, onApply }) {
+  const r = (x) => Math.round(x / step) * step
+  const lo = r(min), hi = r(base * 1.6)
+  const [v, setV] = useState(value || base)
+  useEffect(() => { if (open) setV(value || base) }, [open, base])
+  const diff = v - base
+  const chance = diff >= 0 ? 'high' : v >= base * 0.9 ? 'mid' : 'low'
+  return (
+    <Sheet open={open} onClose={onClose} title={tr('اقترح سومتك', 'Offer your fare')} sub={tr('الشيفورات يشوفو السومة تاعك ويقبلو. كي تزيد، تلقى شيفور أسرع.', 'Drivers see your offer. Higher offers get accepted faster.')}>
+      <div className="offer-box">
+        <button className="icon-btn" onClick={() => setV(Math.max(lo, v - step))} aria-label="minus"><Minus size={22} /></button>
+        <div className="center"><b className="num offer-val">{money(v)}</b><div className="tiny muted">{tr('السومة المقترحة', 'Recommended')}: <span className="num">{money(base)}</span></div></div>
+        <button className="icon-btn" onClick={() => setV(Math.min(hi, v + step))} aria-label="plus"><Plus size={22} /></button>
+      </div>
+      <input type="range" className="range" min={lo} max={hi} step={step} value={v} onChange={(e) => setV(+e.target.value)} />
+      <div className={`offer-chance ${chance}`}>
+        <i /><i /><i />
+        <span>{chance === 'high' ? tr('فرصة كبيرة باش تتقبل دغيا', 'High chance, fast pickup') : chance === 'mid' ? tr('فرصة متوسطة', 'Medium chance') : tr('ممكن تطوّل شوية باش تتقبل', 'May take longer to accept')}</span>
+      </div>
+      <div className="flex mt" style={{ gap: 8 }}>
+        {value && <button className="btn btn-ghost" onClick={() => onApply(null)}>{tr('رجّع السومة العادية', 'Reset')}</button>}
+        <button className="btn btn-primary grow" onClick={() => onApply(v === base ? null : v)}>{tr('أكّد', 'Confirm')} <span className="num">{money(v)}</span></button>
+      </div>
+    </Sheet>
+  )
+}
+
+function OtherSheet({ open, onClose, value, onApply }) {
+  const [n, setN] = useState(value?.name || '')
+  const [p, setP] = useState(value?.phone || '')
+  return (
+    <Sheet open={open} onClose={onClose} title={tr('الكورسة لشخص آخر', 'Ride for someone else')} sub={tr('الشيفور يعيّط للشخص هذا، وحنا نبعثولو تفاصيل الكورسة', 'The driver will contact this person')}>
+      <div className="field"><label>{tr('الاسم', 'Name')}</label><div className="input-wrap"><UserRound size={18} /><input className="input" value={n} onChange={(e) => setN(e.target.value)} placeholder={tr('مثلا: ماما', 'e.g. Mom')} /></div></div>
+      <div className="field"><label>{tr('رقم التيليفون', 'Phone')}</label><div className="phone-in"><div className="cc">🇩🇿 +213</div><input className="input" inputMode="tel" value={p} onChange={(e) => setP(e.target.value)} placeholder="661 23 45 67" /></div></div>
+      <div className="flex mt" style={{ gap: 8 }}>
+        {value && <button className="btn btn-ghost" onClick={() => { setN(''); setP(''); onApply(null) }}>{tr('أنا اللي راكب', "It's me")}</button>}
+        <button className="btn btn-primary grow" disabled={n.trim().length < 2 || p.replace(/\D/g, '').length < 9} onClick={() => onApply({ name: n.trim(), phone: '+213' + p.replace(/\D/g, '').replace(/^0+/, '') })}>{tr('أكّد', 'Confirm')}</button>
+      </div>
+    </Sheet>
+  )
+}
+
 // ===== الرحلة الجارية =====
 function TripPanel({ ride, approach, nav, uid, user }) {
   const [cancel, setCancel] = useState(false)
@@ -520,6 +590,9 @@ function TripPanel({ ride, approach, nav, uid, user }) {
           <small>{ride.status === 'arrived' ? tr('وصل', 'Here') : tr('دقيقة', 'min')}</small>
         </div>
       </div>
+      {ride.pin && ride.status !== 'ongoing' && (
+        <div className="pin-strip"><KeyRound size={18} /><span className="grow">{tr('عطي هذا الكود للشيفور باش يبدا الكورسة', 'Share this PIN with your driver')}</span><b className="num">{ride.pin.split('').map((d, i) => <i key={i}>{d}</i>)}</b></div>
+      )}
       {ride.status !== 'arrived' && <div className="progress-line"><i style={{ width: `${Math.round((ride.progress || 0) * 100)}%` }} /></div>}
       <div className="actions4">
         <a href={`tel:${d.phone}`} style={{ color: 'inherit' }}><button style={{ width: '100%' }}><Phone size={20} />{tr('عيّط', 'Call')}</button></a>
@@ -584,7 +657,7 @@ function RatePanel({ ride }) {
 }
 
 // ===== القائمة الجانبية =====
-function RiderDrawer({ open, onClose, user, nav, notifDot }) {
+function RiderDrawer({ open, onClose, user, nav, notifDot, settings }) {
   const go = (p, params) => { onClose(); setTimeout(() => nav.push(p, params), 60) }
   return (
     <Drawer open={open} onClose={onClose}
@@ -613,6 +686,7 @@ function RiderDrawer({ open, onClose, user, nav, notifDot }) {
       <DrawerItem icon={<Gift size={19} />} color="#E8650A" label={tr('الكادوات والريلز', 'Rewards & reels')} onClick={() => go('rewards')} tag={<span className="badge">+5</span>} />
       <DrawerItem icon={<Wallet size={19} />} color="#a16207" label={tr('البورتفاي', 'Wallet')} onClick={() => go('wallet')} />
       <DrawerItem icon={<Ticket size={19} />} color="#ef4444" label={tr('كود التخفيض', 'Promo codes')} onClick={() => go('promo')} />
+      {settings.features?.students !== false && settings.students?.enabled !== false && <DrawerItem icon={<GraduationCap size={19} />} color="#3538CD" label={tr('خصم الطالب', 'Student discount')} tag={user.student?.status === 'verified' ? '✓' : `-${settings.students?.discount}%`} onClick={() => go('student')} />}
       <DrawerItem icon={<Bell size={19} />} color="#a855f7" label={tr('الإشعارات', 'Notifications')} onClick={() => go('notifications')} tag={notifDot && <span className="dot" style={{ width: 9, height: 9, borderRadius: 9, background: 'var(--danger)', display: 'block' }} />} />
       <DrawerItem icon={<Users size={19} />} color="#0ea5e9" label={tr('عرّض صحابك', 'Invite friends')} onClick={() => go('invite')} />
       <DrawerItem icon={<LifeBuoy size={19} />} color="#22c55e" label={tr('المساعدة والدعم', 'Help & support')} onClick={() => go('support')} />

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { ChevronDown, Gift, ShieldCheck, User, Phone, Mail, MapPin, Ticket } from 'lucide-react'
 import { useBoot, AppProvider } from '@/ui/app-ctx.jsx'
-import { NavProvider, Splash, Toasts, toast } from '@/ui/kit.jsx'
+import { NavProvider, Splash, Toasts, toast, Maintenance } from '@/ui/kit.jsx'
 import { OnbArt } from '@/ui/art.jsx'
 import { tr, isAr } from '@/core/util.js'
 import { CITIES } from '@/core/config.js'
@@ -11,10 +11,11 @@ import SearchPage from './Search.jsx'
 import Reels from './Reels.jsx'
 import Rewards from './Rewards.jsx'
 import TopUp from './TopUp.jsx'
+import Student from './Student.jsx'
 import * as P from './pages.jsx'
 
 const PAGES = {
-  search: SearchPage, reels: Reels, rewards: Rewards, topup: TopUp, trips: P.Trips, trip: P.TripDetail, wallet: P.Wallet, promo: P.Promo,
+  search: SearchPage, reels: Reels, rewards: Rewards, topup: TopUp, student: Student, trips: P.Trips, trip: P.TripDetail, wallet: P.Wallet, promo: P.Promo,
   notifications: P.Notifications, invite: P.Invite, support: P.Support, profile: P.Profile, edit: P.EditProfile, settings: P.Settings,
   places: P.Places, scheduled: P.Scheduled, about: P.About, chat: P.ChatPage,
 }
@@ -38,7 +39,8 @@ export default function App() {
       <Splash done={ready} />
       {ready && st.error && <div className="empty" style={{ paddingTop: 120 }}><b>{tr('ما قدرناش نتكونيكتاو', 'Connection failed')}</b><div className="small">{st.error}</div><button className="btn btn-primary mt" onClick={() => location.reload()}>{tr('عاود', 'Retry')}</button></div>}
       {ready && !st.error && (
-        !onb ? <Onboarding onDone={() => { localStorage.setItem('w_onb', '1'); setOnb(true) }} />
+        st.settings.maintenance?.on ? <Maintenance message={st.settings.maintenance.message} support={st.settings.support} />
+        : !onb ? <Onboarding onDone={() => { localStorage.setItem('w_onb', '1'); setOnb(true) }} />
           : !user ? <Register uid={st.uid} />
             : user.blocked ? <div className="empty" style={{ paddingTop: 140 }}><b>{tr('الحساب موقوف مؤقتًا', 'Account suspended')}</b><div className="small">{tr('تواصل مع الدعم لمزيد من المعلومات', 'Please contact support')}</div><a className="btn btn-primary mt" href={`https://wa.me/${st.settings.support.whatsapp}`}>{tr('تواصل مع الدعم', 'Contact support')}</a></div>
             : (
@@ -53,7 +55,7 @@ export default function App() {
 
 const SLIDES = [
   { t: ['كورستك بكليكة وحدة', 'Your ride, one tap away'], d: ['اطلب طاكسي في ثواني وتبّع الشيفور مباشرة في الخريطة بسومة واضحة.', 'Request a ride in seconds and track your driver live with clear prices.'] },
-  { t: ['شوف الريلز واركب بلاش', 'Watch reels, ride free'], d: ['كل إشهار تكمّلو يزيدلك 5 دينار في رصيد الكادوات. جمّعهم وبدّلهم بكورسة بلاش!', 'Every reel you finish adds 5 DA to your rewards. Redeem them for free rides!'] },
+  { t: ['شوف الريلز واركب بلاش', 'Watch reels, ride free'], d: ['كل إشهار تكمّلو يزيدلك 100 نقطة. جمّع النقاط وبدّلهم بكورسة بلاش!', 'Every ad you finish adds 100 points. Redeem them for free rides!'] },
   { t: ['آمن ومضمون', 'Safe & trusted'], d: ['شيفورات موثّقين، تقدر تبعث الكورسة لأهلك، وزر طوارئ في كل كورسة.', 'Verified drivers, trip sharing and an SOS button on every ride.'] },
 ]
 function Onboarding({ onDone }) {
