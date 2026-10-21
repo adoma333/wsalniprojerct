@@ -21,6 +21,11 @@ jobs:
       - run: |
           npm i --no-save playwright@1.56.1 >/dev/null
           npx playwright install --with-deps chromium >/dev/null
+      - name: موارد الخريطة
+        run: |
+          curl -s https://tiles.openfreemap.org/styles/liberty | python3 -c "import json,sys;d=json.load(sys.stdin);print('SPRITE',d.get('sprite'));print('GLYPHS',d.get('glyphs'));[print('POI',l['id'],json.dumps(l['layout'].get('icon-image'))[:300]) for l in d['layers'] if l.get('source-layer')=='poi'][:5];print('FONTS',set(f for l in d['layers'] for f in (l.get('layout',{}).get('text-font') or []) if isinstance(f,str)))"
+          SP=$(curl -s https://tiles.openfreemap.org/styles/liberty | python3 -c "import json,sys;print(json.load(sys.stdin)['sprite'])")
+          curl -s "$SP.json" | python3 -c "import json,sys;k=sorted(json.load(sys.stdin));print('ICONS',len(k),' '.join(k[:400]))"
       - name: الفحص
         run: |
           d="${SURGE_DOMAIN_RAW:-wsalni.surge.sh}"
