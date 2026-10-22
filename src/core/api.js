@@ -41,8 +41,8 @@ export async function registerRider(uid, { name, phone, email, city, referral })
   }
 }
 
-export async function addTx(uid, tx) { return store.add(`users/${uid}/tx`, { ...tx, at: Date.now() }) }
-export const watchTx = (uid, cb) => store.watchList(`users/${uid}/tx`, { orderBy: ['at', 'desc'], limit: 60 }, cb)
+export async function addTx(uid, tx, who = 'rider') { return store.add(`${who === 'driver' ? 'drivers' : 'users'}/${uid}/tx`, { ...tx, at: Date.now() }) }
+export const watchTx = (uid, cb, who = 'rider') => store.watchList(`${who === 'driver' ? 'drivers' : 'users'}/${uid}/tx`, { orderBy: ['at', 'desc'], limit: 60 }, cb)
 
 // ===== الريلز والمكافآت =====
 export const watchViews = (uid, cb) => store.watchList(`users/${uid}/views`, {}, cb)
@@ -126,30 +126,33 @@ export const watchPromos = (cb) => store.watchList('promos', {}, cb)
 export const savePromo = (code, data) => store.set(`promos/${code.toUpperCase()}`, { ...data, code: code.toUpperCase() }, true)
 export const deletePromo = (code) => store.remove(`promos/${code}`)
 
-export async function redeemVoucher(uid, code) {
+export async function redeemVoucher(uid, code, who = 'rider') {
+  const col = who === 'driver' ? 'drivers' : 'users'
   code = code.trim().toUpperCase()
   const r = await store.tx(async (t) => {
     const v = await t.get(`vouchers/${code}`)
     if (!v) return { ok: false, msg: 'الكود غير صحيح' }
     if (v.used) return { ok: false, msg: 'تم استخدام هذا الكود' }
     t.update(`vouchers/${code}`, { used: true, usedBy: uid, usedAt: Date.now() })
-    t.update(`users/${uid}`, { wallet: store.inc(v.amount), lastVoucher: code, updatedAt: Date.now() })
+    t.update(`${col}/${uid}`, { wallet: store.inc(v.amount), lastVoucher: code, updatedAt: Date.now() })
     return { ok: true, amount: v.amount }
   })
-  if (r.ok) await addTx(uid, { kind: 'topup', amount: r.amount, currency: 'wallet', title: `شحن رصيد بقسيمة ${code}` }).catch(() => {})
+  if (r.ok) await addTx(uid, { kind: 'topup', amount: r.amount, currency: 'wallet', title: `شحن رصيد بقسيمة ${code}` }, who).catch(() => {})
   return r
 }
 // ===== الشحن (الذهبية / CIB / بريدي موب) =====
 // في الوضع التجريبي يُشحن الرصيد مباشرة، وإلا يبقى الطلب "قيد المراجعة" حتى يوافق الأدمن
-export async function topUp(uid, { amount, method, last4 = '', receipt = '', ref = '' }, payments) {
+// who: 'rider' (users) أو 'driver' (drivers) — نفس طرق الدفع للزبون والسائق
+export async function topUp(uid, { amount, method, last4 = '', receipt = '', ref = '' }, payments, who = 'rider') {
   amount = Math.round(Number(amount) || 0)
   const instant = payments.demo && method !== 'baridimob'
   const id = 'T' + Date.now().toString(36).toUpperCase() + shortId(3)
+  const col = who === 'driver' ? 'drivers' : 'users'
   await store.tx(async (t) => {
-    t.set(`topups/${id}`, { uid, amount, method, last4, receipt, ref, status: instant ? 'paid' : 'pending', demo: !!payments.demo, at: Date.now() })
-    if (instant) t.update(`users/${uid}`, { wallet: store.inc(amount), lastTopup: id, updatedAt: Date.now() })
+    t.set(`topups/${id}`, { uid, who, amount, method, last4, receipt, ref, status: instant ? 'paid' : 'pending', demo: !!payments.demo, at: Date.now() })
+    if (instant) t.update(`${col}/${uid}`, { wallet: store.inc(amount), lastTopup: id, updatedAt: Date.now() })
   })
-  if (instant) await addTx(uid, { kind: 'topup', amount, currency: 'wallet', title: `شحن ${METHOD_NAMES[method] || method}${last4 ? ' •••• ' + last4 : ''}` }).catch(() => {})
+  if (instant) await addTx(uid, { kind: 'topup', amount, currency: 'wallet', title: `شحن ${METHOD_NAMES[method] || method}${last4 ? ' •••• ' + last4 : ''}` }, who).catch(() => {})
   return { id, status: instant ? 'paid' : 'pending', amount }
 }
 export const METHOD_NAMES = { edahabia: 'الذهبية', cib: 'CIB', baridimob: 'بريدي موب', voucher: 'كارطة شحن' }
@@ -159,8 +162,8 @@ export async function reviewTopup(t, approve, note = '') {
   await store.update(`topups/${t.id}`, { status: approve ? 'paid' : 'rejected', reviewedAt: Date.now(), note })
   audit('topup', `${approve ? 'قبول' : 'رفض'} شحن ${t.amount} دج (${t.name || t.uid})`)
   if (approve) {
-    await store.update(`users/${t.uid}`, { wallet: store.inc(t.amount), updatedAt: Date.now() })
-    await addTx(t.uid, { kind: 'topup', amount: t.amount, currency: 'wallet', title: `شحن ${METHOD_NAMES[t.method] || t.method}` }).catch(() => {})
+    await store.update(`${t.who === 'driver' ? 'drivers' : 'users'}/${t.uid}`, { wallet: store.inc(t.amount), updatedAt: Date.now() })
+    await addTx(t.uid, { kind: 'topup', amount: t.amount, currency: 'wallet', title: `شحن ${METHOD_NAMES[t.method] || t.method}` }, t.who).catch(() => {})
   }
 }
 
@@ -284,3 +287,44 @@ export async function reviewStudent(uid, approve, note = '') {
   audit('student', `${approve ? 'توثيق' : 'رفض'} بطاقة طالب (${u?.name || uid})`)
 }
 export const watchStudents = (cb) => store.watchList('students', { orderBy: ['submittedAt', 'desc'] }, cb)
+
+// ===== محفظة السائق: سحب الأرباح =====
+export const WITHDRAW_METHODS = { ccp: 'حساب CCP (بريد الجزائر)', baridimob: 'بريدي موب (RIP)', bank: 'حساب بنكي' }
+export async function requestWithdraw(uid, { amount, method, account, name }, dw) {
+  amount = Math.round(Number(amount) || 0)
+  if (amount < (dw?.withdrawMin || 0)) throw new Error(`أقل مبلغ للسحب ${dw.withdrawMin} دج`)
+  const id = 'W' + Date.now().toString(36).toUpperCase() + shortId(3)
+  // المبلغ يتحجز من الرصيد في نفس اللحظة، ويرجع إذا ترفض الطلب
+  await store.tx(async (t) => {
+    const d = await t.get(`drivers/${uid}`)
+    if ((d?.wallet || 0) < amount) throw new Error('الرصيد ما يكفيش')
+    t.set(`withdrawals/${id}`, { uid, name: d.name, phone: d.phone, amount, method, account, holder: name, status: 'pending', at: Date.now() })
+    t.update(`drivers/${uid}`, { wallet: store.inc(-amount), updatedAt: Date.now() })
+  })
+  await addTx(uid, { kind: 'withdraw', amount: -amount, currency: 'wallet', title: `طلب سحب إلى ${WITHDRAW_METHODS[method] || method}` }, 'driver').catch(() => {})
+  return id
+}
+export const watchWithdrawals = (cb) => store.watchList('withdrawals', { orderBy: ['at', 'desc'], limit: 300 }, cb)
+export const watchMyWithdrawals = (uid, cb) => store.watchList('withdrawals', { where: [['uid', '==', uid]] }, (w) => cb(w.sort((a, b) => b.at - a.at)))
+export const watchMyTopupsAs = (uid, cb) => store.watchList('topups', { where: [['uid', '==', uid]] }, (t) => cb(t.sort((a, b) => b.at - a.at)))
+export async function reviewWithdraw(w, approve, note = '') {
+  await store.update(`withdrawals/${w.id}`, { status: approve ? 'paid' : 'rejected', reviewedAt: Date.now(), note })
+  if (!approve) {
+    await store.update(`drivers/${w.uid}`, { wallet: store.inc(w.amount), updatedAt: Date.now() })
+    await addTx(w.uid, { kind: 'refund', amount: w.amount, currency: 'wallet', title: 'إرجاع مبلغ سحب مرفوض' + (note ? ` (${note})` : '') }, 'driver').catch(() => {})
+  }
+  audit('withdraw', `${approve ? 'تحويل' : 'رفض'} سحب ${w.amount} دج (${w.name || w.uid})`)
+}
+
+// ===== تحديات اليوم للسائق (مكافآت حسب عدد الكورسات) =====
+export async function claimQuest(uid, day, idx, bonus, trips) {
+  const key = `${day}:${idx}`
+  const ok = await store.tx(async (t) => {
+    const d = await t.get(`drivers/${uid}`)
+    if ((d?.questsDone || []).includes(key)) return false
+    t.update(`drivers/${uid}`, { wallet: store.inc(bonus), questsDone: [...(d?.questsDone || []).filter((k) => k.startsWith(day)), key], bonusTotal: store.inc(bonus), updatedAt: Date.now() })
+    return true
+  })
+  if (ok) await addTx(uid, { kind: 'bonus', amount: bonus, currency: 'wallet', title: `مكافأة تحدي ${trips} كورسات اليوم 🏆` }, 'driver').catch(() => {})
+  return ok
+}

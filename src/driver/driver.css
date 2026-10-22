@@ -35,3 +35,20 @@
 .chart i { width: 100%; max-width: 34px; border-radius: 10px 10px 4px 4px; background: var(--grad); min-height: 4px; transition: height 0.8s var(--ease); }
 .chart i.dim { background: var(--line-2); }
 .chart small { font-size: 11px; color: var(--muted); }
+
+/* محفظة السائق والتحديات */
+.low-bal { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; margin-bottom: 10px; border-radius: 16px; background: var(--danger-bg); color: var(--danger); text-align: start; }
+.low-bal b { display: block; font-size: 14px; } .low-bal small { font-size: 12px; opacity: .85; }
+.quest { padding: 14px; border-radius: 18px; margin-bottom: 10px; background: linear-gradient(135deg, #FFF7E6, #FFE9CC); border: 1px solid #F8D9A8; }
+[data-theme=dark] .quest { background: linear-gradient(135deg, #2b2014, #3a2410); border-color: #5a3a16; }
+.quest b.small { display: inline-flex; align-items: center; gap: 6px; }
+.q-bar { height: 8px; border-radius: 8px; background: rgba(0,0,0,.08); overflow: hidden; }
+.q-bar i { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, #F4B740, var(--brand)); transition: width .6s; }
+.q-steps { display: flex; justify-content: space-between; margin-top: 8px; }
+.q-steps span { display: flex; flex-direction: column; align-items: center; font-size: 11px; color: var(--muted); }
+.q-steps span b { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--card); border: 2px solid var(--line-2); color: var(--ink); font-size: 12px; }
+.q-steps span.ok b { background: var(--success); border-color: var(--success); color: #fff; }
+.flt-btn { display: flex; align-items: center; gap: 8px; width: 100%; justify-content: center; padding: 10px; margin-bottom: 10px; border-radius: 14px; background: var(--card-2); font-size: 13.5px; font-weight: 600; }
+.seg-btns { display: flex; gap: 6px; background: var(--card-2); padding: 4px; border-radius: 14px; }
+.seg-btns button { flex: 1; padding: 9px 6px; border-radius: 11px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.seg-btns button.active { background: var(--card); color: var(--ink); box-shadow: var(--shadow-1); }

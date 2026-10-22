@@ -9,8 +9,10 @@ import { CITIES } from '@/core/config.js'
 import { watchDriver, registerDriver } from '@/core/api.js'
 import Home from './Home.jsx'
 import * as P from './pages.jsx'
+import TopUp from '@/rider/TopUp.jsx'
 
 const PAGES = {
+  topup: TopUp, withdraw: P.Withdraw,
   trips: P.Trips, trip: P.TripDetail, scheduled: P.Scheduled, wallet: P.Wallet, earnings: P.Earnings, invite: P.Invite, referrals: P.Referrals,
   notifications: P.Notifications, support: P.Support, profile: P.Profile, edit: P.EditProfile, vehicle: P.Vehicle, documents: P.Documents,
   settings: P.Settings, chat: P.ChatPage, city: P.City,
@@ -73,7 +75,7 @@ export const DOC_LIST = DOCS
 function Register({ uid, existing, autoApprove, onDone }) {
   const [step, setStep] = useState(0)
   const [f, setF] = useState(() => ({
-    name: existing?.name || '', phone: (existing?.phone || '').replace('+213', ''), email: existing?.email || '', city: existing?.city || 'sba', photo: existing?.photo || '',
+    name: existing?.name || '', phone: (existing?.phone || '').replace('+213', ''), email: existing?.email || '', city: existing?.city || 'sba', photo: existing?.photo || '', gender: existing?.gender || 'm',
     vehicle: existing?.vehicle || { make: '', model: '', year: '', color: '', plate: '', class: 'eco' },
     docs: existing?.docs || {}, referral: '',
   }))
@@ -98,7 +100,7 @@ function Register({ uid, existing, autoApprove, onDone }) {
     setBusy(true)
     try {
       await registerDriver(uid, {
-        name: f.name.trim(), phone: '+213' + f.phone.replace(/\D/g, '').replace(/^0+/, '').replace(/^213/, ''), email: f.email, city: f.city, photo: f.photo,
+        name: f.name.trim(), phone: '+213' + f.phone.replace(/\D/g, '').replace(/^0+/, '').replace(/^213/, ''), email: f.email, city: f.city, photo: f.photo, gender: f.gender,
         vehicle: f.vehicle, docs: f.docs, referredBy: f.referral.toUpperCase(),
       }, autoApprove)
       toast(autoApprove ? tr('الحساب تاعك تفعّل، ابدا الخدمة دروك 🚀', 'Account activated 🚀') : tr('الطلب تاعك تبعث للمراجعة ✅', 'Submitted for review ✅'), 'success')
@@ -129,6 +131,10 @@ function Register({ uid, existing, autoApprove, onDone }) {
               <input type="file" accept="image/*" hidden onChange={upload('photo')} />
             </label>
             <div className="field"><label>{tr('الاسم واللقب', 'Full name')}</label><div className="input-wrap"><User size={18} /><input className="input" value={f.name} onChange={set('name')} /></div></div>
+            <div className="field"><label>{tr('أنا', 'I am')}</label>
+              <div className="seg-btns">{[['m', tr('شيفور 👨', 'Male driver 👨')], ['f', tr('شيفورة 👩', 'Female driver 👩')]].map(([k, l]) => <button key={k} className={f.gender === k ? 'active' : ''} onClick={() => setF({ ...f, gender: k })}>{l}</button>)}</div>
+              {f.gender === 'f' && <span className="tiny muted">{tr('تجيك طلبات "شيفورة مرا" من الزبونات', 'You will also receive women-only requests')}</span>}
+            </div>
             <div className="field"><label>{tr('رقم التيليفون', 'Phone')}</label><div className="phone-in"><div className="cc">🇩🇿 +213</div><input className="input" inputMode="tel" value={f.phone} onChange={set('phone')} placeholder="661 23 45 67" /></div></div>
             <div className="field"><label>{tr('البريد الإلكتروني', 'Email')}</label><div className="input-wrap"><Mail size={18} /><input className="input" type="email" value={f.email} onChange={set('email')} /></div></div>
             <div className="grid2">

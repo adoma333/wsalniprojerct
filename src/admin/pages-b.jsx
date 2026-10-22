@@ -409,8 +409,8 @@ export function SettingsAdmin() {
       <div className="col">
         <div className="panel-card">
           <h3><Database size={18} />البيانات</h3>
-          <div className="small">{MODE === 'firebase' ? <span className="badge green">Firebase مباشر — البيانات مشتركة بين كل الأجهزة</span> : <span className="badge yellow">وضع العرض — البيانات في هذا المتصفح فقط</span>}</div>
-          {MODE !== 'firebase' && <div className="tiny muted mt">لربط كل الأجهزة (زبون + سائق + لوحة) أضف مفاتيح Firebase عبر أمر الإعداد على السيرفر، وسيعاد البناء تلقائيًا.</div>}
+          <div className="small">{MODE === 'server' ? <span className="badge green">خادم وصلني (SQLite) — كل الهواتف واللوحة متصلة لحظيًا</span> : MODE === 'firebase' ? <span className="badge green">Firebase مباشر — البيانات مشتركة بين كل الأجهزة</span> : <span className="badge yellow">وضع العرض — البيانات في هذا المتصفح فقط</span>}</div>
+          {MODE === 'local' && <div className="tiny muted mt">لربط كل الأجهزة (زبون + سائق + لوحة) شغّل أمر الإعداد على السيرفر مرة أخرى: يثبّت خادم قاعدة البيانات SQLite ويعيد البناء تلقائيًا.</div>}
           <div className="tiny muted mt">المدير: <b className="num">{BRAND.adminEmail}</b></div>
           <button className="btn btn-ghost btn-sm mt" onClick={backup}><Download size={16} />نسخة احتياطية JSON</button>
           <button className="btn btn-ghost btn-sm mt" onClick={async () => { if (confirm('إعادة الإعدادات الافتراضية للتسعير والمكافآت؟')) { await saveSettings({ pricing: DEFAULT_SETTINGS.pricing, rewards: DEFAULT_SETTINGS.rewards }); toast('تمت الاستعادة') } }}>استعادة الإعدادات الافتراضية</button>

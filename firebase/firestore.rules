@@ -65,6 +65,13 @@ service cloud.firestore {
         || (me(uid) && !changed().hasAny(['status', 'rejectReason', 'approvedAt']))
         || (signedIn() && onlyChanges(['ratingSum', 'ratingCount']));
       allow delete: if isAdmin();
+      match /tx/{id} { allow read: if me(uid) || isAdmin(); allow create: if me(uid) || isAdmin(); allow update, delete: if isAdmin(); }
+    }
+    // طلبات سحب أرباح السائقين
+    match /withdrawals/{id} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'pending' && request.resource.data.amount > 0;
+      allow update, delete: if isAdmin();
     }
 
     // الرحلات
@@ -114,6 +121,8 @@ service cloud.firestore {
             || (request.resource.data.status == 'paid' && cfg().get('payments', {}).get('demo', true) == true && request.resource.data.method in ['edahabia', 'cib']));
       allow update, delete: if isAdmin();
     }
+    // مرآة عامة لكورسة لشخص آخر (المفتاح عشوائي وغير قابل للتخمين)
+    match /shares/{key} { allow get: if true; allow list: if false; allow create, update: if signedIn() && request.resource.data.uid == request.auth.uid; allow delete: if isAdmin(); }
     match /students/{uid} { allow create, update: if me(uid) || isAdmin(); allow read, delete: if isAdmin(); }
     match /audit/{id} { allow read, create: if isAdmin(); allow update, delete: if false; }
     match /sos/{id} { allow create: if signedIn(); allow read, update, delete: if isAdmin(); }

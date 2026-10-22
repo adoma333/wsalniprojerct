@@ -26,6 +26,8 @@ export const FIREBASE = {
 
 // بدون مفاتيح Firebase يعمل كل شيء بوضع العرض المحلي (التخزين داخل المتصفح)
 export const HAS_FIREBASE = !!(FIREBASE.apiKey && FIREBASE.projectId)
+export const API_URL = import.meta.env.VITE_API_URL || ''
+export const HAS_SERVER = !!API_URL
 
 export const SITE_URL = import.meta.env.VITE_SITE_URL || ''
 
@@ -79,6 +81,8 @@ export const DEFAULT_SETTINGS = {
   // طرق الشحن
   payments: { demo: true, edahabia: true, cib: true, baridimob: true, voucher: true, rip: '00799999 0000000000 00', ripName: 'SARL WASALNI', presets: [500, 1000, 2000, 5000], min: 200, max: 50000 },
   // الميزات (تشغيل/إيقاف من الأدمن)
+  driverWallet: { minBalance: -1000, withdrawMin: 1000, topup: true, withdraw: true },
+  quests: { enabled: true, list: [{ trips: 5, bonus: 200 }, { trips: 10, bonus: 500 }, { trips: 20, bonus: 1200 }] },
   features: { reels: true, delivery: true, schedule: true, offerPrice: true, womenDrivers: true, tripPin: true, rideForOther: true, students: true },
   // إعدادات كل ولاية: تفعيل، معامل سعر، زيادة مؤقتة
   zones: {},

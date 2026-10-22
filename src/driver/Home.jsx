@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Menu, Zap, Crosshair, Layers, Phone, MessageCircle, Navigation, MapPin, Flag, Banknote, Wallet, Clock, Star, X, ShieldAlert, Map as MapIco,
   CalendarClock, BadgeDollarSign, Gift, Users, Bell, LifeBuoy, Info, Check, Route as RouteIco, Coins,
-  KeyRound,
+  KeyRound, AlertTriangle, ChevronLeft, SlidersHorizontal, Trophy,
 } from 'lucide-react'
 import MapView from '@/map/MapView.jsx'
 import MapControls, { useMapPrefs } from '@/map/MapControls.jsx'
@@ -15,9 +15,10 @@ import { tr, money, mins, km, haversine, haptic, offsetPoint, along, pick, num }
 import { CITIES } from '@/core/config.js'
 import { currentPosition, watchPosition, route, reverse, mapsLink } from '@/core/geo.js'
 import { quote, driverNet } from '@/core/pricing.js'
-import { watchSearching, watchDriverRides, acceptRide, declineRide, updateRide, updateDriver, store, cancelRide, sos } from '@/core/api.js'
+import { watchSearching, watchDriverRides, acceptRide, declineRide, updateRide, updateDriver, store, cancelRide, sos, claimQuest } from '@/core/api.js'
 
 const ACTIVE = ['accepted', 'arrived', 'ongoing']
+const RIDE_PREFS = [['ac', '❄️', 'كليماتيزور', 'A/C'], ['quiet', '🤫', 'كورسة هادية', 'Quiet ride'], ['bag', '🧳', 'شنطة كبيرة', 'Big luggage'], ['child', '👶', 'كرسي طفل', 'Child seat']]
 const RIDER_NAMES = ['أمينة', 'محمد', 'سارة', 'ياسين', 'مريم', 'رياض', 'إيمان', 'وليد', 'خديجة', 'سفيان']
 const CLASS_OK = { eco: ['eco', 'moto'], comfort: ['eco', 'comfort', 'moto'], family: ['eco', 'comfort', 'family', 'moto'], vip: ['eco', 'comfort', 'vip'], moto: ['moto'] }
 
@@ -37,6 +38,7 @@ export default function Home() {
   const [brg, setBrg] = useState({ b: 0, p: 0 })
   const [panelH, setPanelH] = useState(140)
   const [now, setNow] = useState(Date.now())
+  const [fltOpen, setFltOpen] = useState(false)
   const online = !!driver.online
   const me = pos || city.center
 
@@ -75,13 +77,18 @@ export default function Home() {
 
   // طلبات حقيقية مناسبة
   const myClass = driver.vehicle?.class || 'eco'
+  const flt = driver.filters || {}
   const incoming = useMemo(() => {
     if (!online || ride) return null
     const list = requests
-      .filter((r) => !(r.declinedBy || []).includes(uid) && (CLASS_OK[myClass] || ['eco']).includes(r.classId) && haversine(me, r.pickup.coords) < 25 && Date.now() - r.createdAt < 5 * 60000)
+      .filter((r) => !(r.declinedBy || []).includes(uid) && (CLASS_OK[myClass] || ['eco']).includes(r.classId) && haversine(me, r.pickup.coords) < (flt.maxKm || 25) && Date.now() - r.createdAt < 5 * 60000)
+      // طلب سائقة امرأة يروح غير للسائقات
+      .filter((r) => !r.womenOnly || driver.gender === 'f')
+      // فلاتر السائق: أقل سومة وطريقة الدفع
+      .filter((r) => (r.fare?.total || 0) >= (flt.minFare || 0) && (flt.pay !== 'prepaid' || r.payment !== 'cash') && (flt.pay !== 'cash' || r.payment === 'cash'))
       .sort((a, b) => haversine(me, a.pickup.coords) - haversine(me, b.pickup.coords))
     return list[0] || null
-  }, [requests, online, !!ride, uid, Math.round(me[0] * 200), Math.round(me[1] * 200)])
+  }, [requests, online, !!ride, uid, Math.round(me[0] * 200), Math.round(me[1] * 200), JSON.stringify(flt), driver.gender])
 
   // طلبات محاكاة عند عدم وجود طلبات حقيقية
   useEffect(() => {
@@ -154,6 +161,11 @@ export default function Home() {
       setSimReq(null)
       toast(tr('راك ماشي متصل دروك', 'You are offline'))
     } else {
+      const minB = settings.driverWallet?.minBalance ?? -1000
+      if ((driver.wallet || 0) < minB) {
+        toast(tr(`الرصيد تاعك تحت ${money(minB)}، اشحن البورتفاي باش تتكونيكتا`, `Balance below ${money(minB)} — top up to go online`), 'error')
+        return nav.push('wallet')
+      }
       const p = pos || (await currentPosition())?.coords || city.center
       await updateDriver(uid, { online: true, onlineSince: Date.now(), loc: { coords: p, heading }, lastSeen: Date.now() })
       toast(tr('راك متصل دروك، استنى الطلبات 🚀', 'You are online 🚀'), 'success')
@@ -242,6 +254,11 @@ export default function Home() {
                 <div className="tiny muted">{tr('ابقى قريب من البلايص البرتقاليين باش تجيك طلبات أكثر', 'Stay near orange zones for more requests')}</div>
               </div>
             )}
+            {(driver.wallet || 0) < (settings.driverWallet?.minBalance ?? -1000) && (
+              <button className="low-bal" onClick={() => nav.push('topup')}><AlertTriangle size={20} /><span className="grow"><b>{tr('اشحن البورتفاي باش تخدم', 'Top up to go online')}</b><small>{tr('رصيدك', 'Balance')} <span className="num">{money(driver.wallet || 0)}</span></small></span><ChevronLeft size={18} /></button>
+            )}
+            {settings.quests?.enabled !== false && <Quests list={settings.quests?.list || []} trips={todayRides.length} done={driver.questsDone || []} day={day} uid={uid} />}
+            <button className="flt-btn" onClick={() => setFltOpen(true)}><SlidersHorizontal size={16} />{tr('فلتر الطلبات', 'Request filters')}{(flt.maxKm || flt.minFare || (flt.pay && flt.pay !== 'all')) && <span className="badge">{tr('مفعّل', 'On')}</span>}</button>
             <div className="stats-bar">
               <div><small>{tr('الوقت متصل', 'Online time')}</small><b className="num">{hm}</b></div>
               <div><small>{tr('الدخل اليوم', 'Earned today')}</small><b className="num">{money(todayEarn)}</b></div>
@@ -253,10 +270,48 @@ export default function Home() {
         {ride && ride.status === 'completed' && <Collect ride={ride} uid={uid} settings={settings} />}
       </DragPanel>
 
+      <FiltersSheet open={fltOpen} onClose={() => setFltOpen(false)} value={flt} onSave={(v) => { updateDriver(uid, { filters: v }); setFltOpen(false); toast(tr('الفلتر تسجّل ✓', 'Filters saved ✓'), 'success') }} />
       <DriverDrawer open={drawer} onClose={() => setDrawer(false)} driver={driver} nav={nav} online={online} />
     </div>
   )
 }
+// تحديات اليوم: كل ما توصل لعدد كورسات تاخذ مكافأة في البورتفاي
+function Quests({ list, trips, done, day, uid }) {
+  useEffect(() => {
+    list.forEach((q, i) => { if (trips >= q.trips && !done.includes(`${day}:${i}`)) claimQuest(uid, day, i, q.bonus, q.trips).then((ok) => ok && toast(tr(`🏆 ربحت ${money(q.bonus)} مكافأة!`, `🏆 You earned a ${money(q.bonus)} bonus!`), 'success')) })
+  }, [trips, list.length])
+  if (!list.length) return null
+  const next = list.findIndex((q, i) => !done.includes(`${day}:${i}`) && trips < q.trips)
+  const q = list[next === -1 ? list.length - 1 : next]
+  const pct = Math.min(100, (trips / q.trips) * 100)
+  return (
+    <div className="quest">
+      <div className="between"><b className="small"><Trophy size={16} color="#F4B740" /> {tr('تحدي اليوم', "Today's challenge")}</b><span className="tiny muted num">{Math.min(trips, q.trips)}/{q.trips}</span></div>
+      <div className="small" style={{ margin: '4px 0 8px' }}>{next === -1 ? tr('كمّلت كل التحديات اليوم 🎉', 'All challenges completed 🎉') : tr(`كمّل ${q.trips - trips} كورسات وتاخذ `, `${q.trips - trips} more trips to earn `)}{next !== -1 && <b className="num" style={{ color: 'var(--brand)' }}>{money(q.bonus)}</b>}</div>
+      <div className="q-bar"><i style={{ width: pct + '%' }} /></div>
+      <div className="q-steps">{list.map((x, i) => <span key={i} className={done.includes(`${day}:${i}`) ? 'ok' : ''}><b className="num">{x.trips}</b><small className="num">+{x.bonus}</small></span>)}</div>
+    </div>
+  )
+}
+
+function FiltersSheet({ open, onClose, value, onSave }) {
+  const [f, setF] = useState(value)
+  useEffect(() => { if (open) setF(value) }, [open])
+  return (
+    <Sheet open={open} onClose={onClose} title={tr('فلتر الطلبات', 'Request filters')} sub={tr('تجيك غير الطلبات اللي تناسبك', 'Only receive requests that suit you')}>
+      <div className="field"><label>{tr('أقصى مسافة للزبون', 'Max pickup distance')}: <b className="num">{f.maxKm || 25} {tr('كم', 'km')}</b></label><input type="range" className="range" min="1" max="25" value={f.maxKm || 25} onChange={(e) => setF({ ...f, maxKm: +e.target.value })} /></div>
+      <div className="field"><label>{tr('أقل سومة للكورسة', 'Minimum fare')}: <b className="num">{money(f.minFare || 0)}</b></label><input type="range" className="range" min="0" max="1000" step="50" value={f.minFare || 0} onChange={(e) => setF({ ...f, minFare: +e.target.value })} /></div>
+      <div className="field"><label>{tr('طريقة الدفع', 'Payment')}</label>
+        <div className="seg-btns">{[['all', tr('الكل', 'All')], ['cash', tr('كاش برك', 'Cash only')], ['prepaid', tr('مخلّصة برك', 'Prepaid only')]].map(([k, l]) => <button key={k} className={(f.pay || 'all') === k ? 'active' : ''} onClick={() => setF({ ...f, pay: k })}>{l}</button>)}</div>
+      </div>
+      <div className="flex mt" style={{ gap: 8 }}>
+        <button className="btn btn-ghost" onClick={() => onSave({})}>{tr('نحّي الفلتر', 'Reset')}</button>
+        <button className="btn btn-primary grow" onClick={() => onSave(f)}>{tr('حفظ', 'Save')}</button>
+      </div>
+    </Sheet>
+  )
+}
+
 export const rating = (d) => (d.ratingCount ? Math.round(((d.ratingSum || 0) + 5) / (d.ratingCount + 1) * 10) / 10 : d.rating || 5)
 
 // ===== بطاقة الطلب الوارد =====
@@ -295,6 +350,7 @@ function RequestCard({ req, me, settings, onAccept, onDecline }) {
       </div>
       <RouteSummary ride={req} compact />
       <div className="flex small" style={{ marginTop: 10 }}><Avatar name={req.riderName} size={30} /><b>{req.riderName}</b><Star size={13} fill="var(--gold)" color="var(--gold)" /><span className="num">{req.riderRating || 5}</span></div>
+      {req.prefs?.length > 0 && <div className="flex" style={{ gap: 6, flexWrap: 'wrap', marginTop: 8 }}>{req.prefs.map((k) => { const x = RIDE_PREFS.find((p) => p[0] === k); return x ? <span key={k} className="badge gray">{x[1]} {tr(x[2], x[3])}</span> : null })}</div>}
       {req.forOther && <div className="small" style={{ marginTop: 8, padding: '8px 12px', borderRadius: 12, background: 'var(--info-bg, #EFF8FF)' }}>👤 {tr('الراكب', 'Passenger')}: <b>{req.forOther.name}</b> <span className="num">{req.forOther.phone}</span></div>}
       {req.note && <div className="small" style={{ marginTop: 8, padding: '8px 12px', borderRadius: 12, background: 'var(--warning-bg)' }}>📝 {req.note}</div>}
       <div className="flex mt">

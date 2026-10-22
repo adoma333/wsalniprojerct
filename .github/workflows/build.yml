@@ -23,6 +23,7 @@ env:
   VITE_FIREBASE_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
   VITE_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
   SURGE_DOMAIN_RAW: ${{ secrets.SURGE_DOMAIN }}
+  VITE_API_URL: ${{ secrets.API_URL }}
 
 jobs:
   web:
@@ -194,7 +195,9 @@ jobs:
         run: |
           U="https://$DOMAIN"
           MSG=$(git log -1 --pretty=%s | head -c 300)
-          MODE=$([ -n "${{ secrets.FIREBASE_API_KEY }}" ] && echo "Firebase مباشر ✅" || echo "وضع العرض المحلي ⚠️")
+          if [ -n "$VITE_API_URL" ]; then
+            if curl -fsS -m 10 "$VITE_API_URL/health" >/dev/null 2>&1; then MODE="🗄 قاعدة البيانات متصلة ✅ (كل الهواتف مربوطة)"; else MODE="🗄 قاعدة البيانات ما تجاوبش ⚠️ — شغّل أمر الإعداد على السيرفر"; fi
+          else MODE="وضع العرض المحلي ⚠️ — شغّل أمر الإعداد على السيرفر باش تربط الهواتف"; fi
           ST=$([ "${{ steps.surge.outputs.ok }}" = "1" ] && echo "✅ تم النشر" || echo "⚠️ لم يُنشر (SURGE_TOKEN)")
           TEXT="🚗 <b>وصلني — بناء #${{ github.run_number }}</b>
           ${ST} • ${MODE}

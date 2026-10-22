@@ -113,7 +113,7 @@ export function Settings({ extra }) {
         {extra}
         <Row icon={<Shield size={19} />} color="#12B76A" title={tr('الخصوصية والأمان', 'Privacy & security')} sub={tr('بياناتك مشفرة ولا تُباع', 'Your data is encrypted')} />
         <Row icon={<FileText size={19} />} color="#64748b" title={tr('الشروط والأحكام', 'Terms')} />
-        <Row icon={<Info size={19} />} color="#2E90FA" title={tr('على التطبيق', 'About')} sub={`v1.0 • ${MODE === 'firebase' ? tr('مكونيكتي', 'Online') : tr('وضع العرض', 'Demo mode')}`} />
+        <Row icon={<Info size={19} />} color="#2E90FA" title={tr('على التطبيق', 'About')} sub={`v1.0 • ${MODE !== 'local' ? tr('مكونيكتي', 'Online') : tr('وضع العرض', 'Demo mode')}`} />
       </div>
       <Sheet open={langOpen} onClose={() => setLangOpen(false)} title={tr('اختار اللغة', 'Choose language')}>
         <div className="col">

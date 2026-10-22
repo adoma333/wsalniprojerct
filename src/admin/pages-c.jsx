@@ -10,7 +10,7 @@ import { StatusBadge } from '@/ui/ride-ui.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
 import { money, num, dateTime, timeAgo, compact } from '@/core/util.js'
 import { CITIES } from '@/core/config.js'
-import { saveSettings, reviewTopup, reviewStudent, watchTopups, watchStudents, watchAudit, METHOD_NAMES, store } from '@/core/api.js'
+import { saveSettings, reviewTopup, reviewStudent, watchTopups, watchStudents, watchAudit, METHOD_NAMES, store, watchWithdrawals, reviewWithdraw, WITHDRAW_METHODS } from '@/core/api.js'
 import { useData } from './App.jsx'
 import { Modal, csv } from './pages-a.jsx'
 import { Bars, Donut } from './charts.jsx'
@@ -149,12 +149,12 @@ export function Wilayas() {
 const METHOD_ICON = { edahabia: CreditCard, cib: CreditCard, baridimob: Smartphone, voucher: Ticket }
 export function Payments() {
   const { settings } = useApp()
-  const { users } = useData()
+  const { users, drivers } = useData()
   const topups = useWatch(watchTopups)
   const [tab, setTab] = useState('pending')
   const [img, setImg] = useState(null)
   const [p, setP] = useState(settings.payments)
-  const names = useMemo(() => Object.fromEntries(users.map((u) => [u.id, u])), [users])
+  const names = useMemo(() => Object.fromEntries([...users, ...drivers].map((u) => [u.id, u])), [users, drivers])
   const paid = topups.filter((t) => t.status === 'paid')
   const list = topups.filter((t) => tab === 'all' || t.status === tab)
   const byMethod = Object.entries(paid.reduce((o, t) => ({ ...o, [t.method]: (o[t.method] || 0) + t.amount }), {})).map(([k, v], i) => ({ label: METHOD_NAMES[k] || k, v, c: ['#E8650A', '#2E90FA', '#12B76A', '#7c3aed'][i % 4] }))
@@ -183,7 +183,7 @@ export function Payments() {
                   return (
                     <tr key={t.id}>
                       <td className="small">{dateTime(t.at)}</td>
-                      <td><b className="small">{u?.name || '—'}</b><div className="tiny muted num">{u?.phone}</div></td>
+                      <td><b className="small">{u?.name || '—'}</b>{t.who === 'driver' && <span className="badge gray" style={{ marginInlineStart: 6 }}>سائق</span>}<div className="tiny muted num">{u?.phone}</div></td>
                       <td className="small"><span className="flex" style={{ gap: 6 }}><I size={15} />{METHOD_NAMES[t.method] || t.method}{t.last4 && <span className="num muted">•••• {t.last4}</span>}</span>{t.demo && <span className="badge gray">تجريبي</span>}</td>
                       <td><b className="num small">{money(t.amount)}</b></td>
                       <td className="tiny num">{t.ref || t.id}{t.receipt && <button className="btn btn-xs btn-ghost" style={{ marginInlineStart: 6 }} onClick={() => setImg(t.receipt)}><ImageIcon size={13} />الوصل</button>}</td>
@@ -365,6 +365,83 @@ export function AuditLog() {
           const I = AUDIT_ICON[a.action] || History
           return <div key={a.id} className="feed-item"><span className="ri" style={{ width: 36, height: 36, borderRadius: 12, display: 'grid', placeItems: 'center', background: 'var(--brand-50)', color: 'var(--brand)' }}><I size={17} /></span><span className="grow small">{a.detail}</span><span className="tiny muted">{dateTime(a.at)}</span></div>
         })}
+      </div>
+    </>
+  )
+}
+
+// ===== محفظة السائقين: السحوبات، الحد الأدنى، التحديات =====
+export function DriverWallet() {
+  const { settings } = useApp()
+  const { drivers } = useData()
+  const list = useWatch(watchWithdrawals)
+  const [tab, setTab] = useState('pending')
+  const [dw, setDw] = useState(settings.driverWallet)
+  const [qs, setQs] = useState(settings.quests)
+  const rows = list.filter((w) => tab === 'all' || w.status === tab)
+  const owed = drivers.filter((d) => (d.wallet || 0) < 0)
+  const save = async () => { await saveSettings({ driverWallet: dw, quests: qs }, 'تحديث محفظة السائقين والتحديات'); toast('تم الحفظ ✅', 'success') }
+  return (
+    <>
+      <div className="kpis">
+        <div className="kpi hero"><span className="ki"><Banknote size={20} /></span><b className="num">{money(list.filter((w) => w.status === 'pending').reduce((s, w) => s + w.amount, 0))}</b><small>سحوبات معلّقة</small></div>
+        <div className="kpi"><span className="ki" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}><Check size={20} /></span><b className="num">{money(list.filter((w) => w.status === 'paid').reduce((s, w) => s + w.amount, 0))}</b><small>محوّلة للسائقين</small></div>
+        <div className="kpi"><span className="ki" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}><AlertTriangle size={20} /></span><b className="num">{money(-owed.reduce((s, d) => s + (d.wallet || 0), 0))}</b><small>عمولات مستحقة ({owed.length} سائق)</small></div>
+        <div className="kpi"><span className="ki" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}><CreditCard size={20} /></span><b className="num">{money(drivers.reduce((s, d) => s + Math.max(0, d.wallet || 0), 0))}</b><small>أرصدة السائقين</small></div>
+      </div>
+      <div className="grid-main">
+        <div>
+          <div className="toolbar">
+            <div className="seg">{[['pending', 'بانتظار التحويل'], ['paid', 'محوّلة'], ['rejected', 'مرفوضة'], ['all', 'الكل']].map(([k, l]) => <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
+            <span className="grow" />
+            <button className="btn btn-sm btn-ghost" onClick={() => csv('withdrawals', rows.map((w) => ({ id: w.id, date: dateTime(w.at), driver: w.name, phone: w.phone, method: WITHDRAW_METHODS[w.method], account: w.account, holder: w.holder, amount: w.amount, status: w.status })))}><Download size={16} />تصدير</button>
+          </div>
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>التاريخ</th><th>السائق</th><th>الطريقة</th><th>الحساب</th><th>المبلغ</th><th>الحالة</th><th /></tr></thead>
+              <tbody>
+                {rows.map((w) => (
+                  <tr key={w.id}>
+                    <td className="small">{dateTime(w.at)}</td>
+                    <td><b className="small">{w.name}</b><div className="tiny muted num">{w.phone}</div></td>
+                    <td className="small">{WITHDRAW_METHODS[w.method] || w.method}</td>
+                    <td className="small"><span className="num" dir="ltr">{w.account}</span><div className="tiny muted">{w.holder}</div></td>
+                    <td><b className="num small">{money(w.amount)}</b></td>
+                    <td><span className={`badge ${w.status === 'paid' ? 'green' : w.status === 'pending' ? 'yellow' : 'red'}`}>{{ paid: 'محوّل', pending: 'معلّق', rejected: 'مرفوض' }[w.status]}</span></td>
+                    <td>{w.status === 'pending' && <span className="flex" style={{ gap: 6 }}>
+                      <button className="btn btn-xs btn-success" onClick={async () => { if (confirm(`تأكيد أنك حوّلت ${w.amount} دج إلى ${w.account}؟`)) { await reviewWithdraw(w, true); toast('تم ✅', 'success') } }}><Check size={14} />تم التحويل</button>
+                      <button className="btn btn-xs btn-danger" onClick={async () => { const n = prompt('سبب الرفض؟ (المبلغ يرجع لرصيد السائق)', 'رقم الحساب غير صحيح'); if (n !== null) { await reviewWithdraw(w, false, n); toast('تم الرفض وإرجاع المبلغ') } }}><X size={14} /></button>
+                    </span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {rows.length === 0 && <Empty title="لا توجد طلبات سحب" />}
+          </div>
+        </div>
+        <div className="col">
+          <div className="panel-card">
+            <h3>إعدادات المحفظة<span className="sp" /><button className="btn btn-primary btn-sm" onClick={save}><Save size={16} />حفظ</button></h3>
+            <div className="col">
+              <Field label="أدنى رصيد للاتصال (دج)" hint="إذا نزل رصيد السائق تحت هذا الحد (عمولات الكاش) لا يستطيع الاتصال حتى يشحن"><input className="input num" type="number" value={dw.minBalance} onChange={(e) => setDw({ ...dw, minBalance: N(e.target.value) })} /></Field>
+              <Field label="أقل مبلغ للسحب (دج)"><input className="input num" type="number" value={dw.withdrawMin} onChange={(e) => setDw({ ...dw, withdrawMin: N(e.target.value) })} /></Field>
+              <label className="between small"><span>السماح بشحن محفظة السائق</span><Switch on={dw.topup !== false} onChange={(v) => setDw({ ...dw, topup: v })} /></label>
+              <label className="between small"><span>السماح بسحب الأرباح</span><Switch on={dw.withdraw !== false} onChange={(v) => setDw({ ...dw, withdraw: v })} /></label>
+            </div>
+          </div>
+          <div className="panel-card">
+            <h3>تحديات اليوم للسائقين</h3>
+            <label className="between small"><span>تفعيل التحديات</span><Switch on={qs.enabled !== false} onChange={(v) => setQs({ ...qs, enabled: v })} /></label>
+            {(qs.list || []).map((q, i) => (
+              <div key={i} className="flex mt" style={{ gap: 8 }}>
+                <Field label="عدد الكورسات"><input className="input num" type="number" value={q.trips} onChange={(e) => setQs({ ...qs, list: qs.list.map((x, j) => (j === i ? { ...x, trips: N(e.target.value) } : x)) })} /></Field>
+                <Field label="المكافأة (دج)"><input className="input num" type="number" value={q.bonus} onChange={(e) => setQs({ ...qs, list: qs.list.map((x, j) => (j === i ? { ...x, bonus: N(e.target.value) } : x)) })} /></Field>
+                <button className="btn btn-xs btn-danger" style={{ alignSelf: 'flex-end', marginBottom: 8 }} onClick={() => setQs({ ...qs, list: qs.list.filter((_, j) => j !== i) })}><Trash2 size={14} /></button>
+              </div>
+            ))}
+            <button className="btn btn-ghost btn-sm mt" onClick={() => setQs({ ...qs, list: [...(qs.list || []), { trips: 30, bonus: 2000 }] })}><Plus size={16} />تحدي جديد</button>
+          </div>
+        </div>
       </div>
     </>
   )

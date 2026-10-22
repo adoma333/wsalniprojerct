@@ -33,10 +33,10 @@ export function useBoot(kind) {
     let unsub = () => {}
     ;(async () => {
       try {
-        await initStore()
+        await initStore(kind)
         const { auth } = await import('@/core/store.js')
         const { watchSettings } = await import('@/core/api.js')
-        const uid = kind === 'admin' ? null : await auth.init()
+        const uid = kind === 'admin' ? null : await auth.init(kind)
         unsub = watchSettings((settings) => setSt((s) => ({ ...s, settings })))
         await new Promise((r) => setTimeout(r, 900))
         setSt((s) => ({ ...s, uid, ready: true }))

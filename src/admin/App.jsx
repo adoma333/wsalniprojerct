@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import {
   LayoutDashboard, Car, Users, UserRound, Tags, Clapperboard, Ticket, CreditCard, Bell, LifeBuoy, Settings, LogOut, Menu, Moon, Sun, Lock, Mail,
-  Eye, EyeOff, ShieldCheck, Database, ExternalLink, Gift, Radio, MapPinned, Wallet, GraduationCap, ToggleRight, History,
+  Eye, EyeOff, ShieldCheck, Database, ExternalLink, Gift, Radio, MapPinned, Wallet, GraduationCap, ToggleRight, History, Banknote,
 } from 'lucide-react'
 import { useBoot, AppProvider } from '@/ui/app-ctx.jsx'
 import { Toasts, toast, Avatar } from '@/ui/kit.jsx'
@@ -20,12 +20,12 @@ export const useData = () => useContext(DataCtx)
 
 const NAV = [
   ['الرئيسية', [['overview', 'نظرة عامة', LayoutDashboard], ['live', 'الخريطة الحية', Radio], ['rides', 'الرحلات', Car], ['drivers', 'السائقون', UserRound], ['riders', 'الزبائن', Users]]],
-  ['العمليات', [['wilayas', 'الولايات والمناطق', MapPinned], ['payments', 'المدفوعات والشحن', Wallet], ['students', 'الطلبة', GraduationCap]]],
+  ['العمليات', [['wilayas', 'الولايات والمناطق', MapPinned], ['payments', 'المدفوعات والشحن', Wallet], ['driverwallet', 'محفظة السائقين', Banknote], ['students', 'الطلبة', GraduationCap]]],
   ['الإيرادات والنمو', [['pricing', 'التسعير', Tags], ['reels', 'الإعلانات (الريلز)', Clapperboard], ['rewards', 'النقاط والمكافآت', Gift], ['promos', 'أكواد الخصم', Ticket], ['vouchers', 'قسائم الشحن', CreditCard]]],
   ['التواصل', [['notifications', 'الإشعارات', Bell], ['support', 'الدعم والطوارئ', LifeBuoy]]],
   ['النظام', [['system', 'الميزات والصيانة', ToggleRight], ['audit', 'سجل العمليات', History], ['settings', 'الإعدادات', Settings]]],
 ]
-const PAGES = { overview: A.Overview, rides: A.Rides, drivers: A.Drivers, riders: A.Riders, pricing: B.Pricing, reels: B.ReelsAdmin, rewards: B.RewardsAdmin, promos: B.Promos, vouchers: B.Vouchers, notifications: B.NotificationsAdmin, support: B.SupportAdmin, settings: B.SettingsAdmin, live: C.LiveMap, wilayas: C.Wilayas, payments: C.Payments, students: C.Students, system: C.SystemAdmin, audit: C.AuditLog }
+const PAGES = { overview: A.Overview, rides: A.Rides, drivers: A.Drivers, riders: A.Riders, pricing: B.Pricing, reels: B.ReelsAdmin, rewards: B.RewardsAdmin, promos: B.Promos, vouchers: B.Vouchers, notifications: B.NotificationsAdmin, support: B.SupportAdmin, settings: B.SettingsAdmin, live: C.LiveMap, wilayas: C.Wilayas, payments: C.Payments, students: C.Students, system: C.SystemAdmin, audit: C.AuditLog, driverwallet: C.DriverWallet }
 
 export default function App() {
   const [st] = useBoot('admin')
@@ -87,7 +87,7 @@ function Login({ status, onIn }) {
           {mode === 'setup' && <div className="field"><label>تأكيد كلمة السر</label><div className="input-wrap"><Lock size={18} /><input className="input" type={show ? 'text' : 'password'} value={pw2} onChange={(e) => setPw2(e.target.value)} dir="ltr" autoComplete="new-password" /></div></div>}
           {mode === 'setup' && pw && <div className="flex tiny"><span style={{ flex: 1, height: 5, borderRadius: 5, background: pw.length >= 10 ? 'var(--success)' : pw.length >= 6 ? 'var(--warning)' : 'var(--danger)' }} />{pw.length >= 10 ? 'قوية' : pw.length >= 6 ? 'متوسطة' : 'ضعيفة'}</div>}
           <button className="btn btn-primary btn-block btn-lg" disabled={busy}>{busy ? <span className="spinner" /> : mode === 'setup' ? 'حفظ والدخول' : 'دخول'}</button>
-          <div className="flex tiny muted" style={{ justifyContent: 'center' }}><Database size={13} />{MODE === 'firebase' ? 'متصل بقاعدة بيانات Firebase' : 'وضع العرض: البيانات محفوظة في هذا المتصفح'}</div>
+          <div className="flex tiny muted" style={{ justifyContent: 'center' }}><Database size={13} />{MODE === 'server' ? 'متصل بخادم وصلني (SQLite)' : MODE === 'firebase' ? 'متصل بقاعدة بيانات Firebase' : 'وضع العرض: البيانات محفوظة في هذا المتصفح'}</div>
         </form>
       </div>
     </div>
@@ -147,7 +147,7 @@ function Shell({ onOut }) {
           <div className="adm-top">
             <button className="icon-btn sm flat burger" onClick={() => setOpen(true)}><Menu size={20} /></button>
             <h1>{title}</h1>
-            <span className={`badge hide-m ${MODE === 'firebase' ? 'green' : 'yellow'}`}><Database size={12} />{MODE === 'firebase' ? 'Firebase مباشر' : 'وضع العرض المحلي'}</span>
+            <span className={`badge hide-m ${MODE !== 'local' ? 'green' : 'yellow'}`}><Database size={12} />{MODE === 'server' ? 'متصل مباشر (SQLite)' : MODE === 'firebase' ? 'Firebase مباشر' : 'وضع العرض المحلي'}</span>
             <button className="icon-btn sm flat" onClick={() => { const n = !dark; setDark(n); setTheme(n ? 'dark' : 'light') }}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
           </div>
           <div className="adm-body" key={page}><div className="rise"><C /></div></div>

@@ -12,6 +12,7 @@ import Reels from './Reels.jsx'
 import Rewards from './Rewards.jsx'
 import TopUp from './TopUp.jsx'
 import Student from './Student.jsx'
+import Track from './Track.jsx'
 import * as P from './pages.jsx'
 
 const PAGES = {
@@ -24,13 +25,14 @@ export default function App() {
   const [st] = useBoot('rider')
   const [user, setUser] = useState(undefined)
   const [onb, setOnb] = useState(() => localStorage.getItem('w_onb') === '1')
+  const trackKey = (location.hash.match(/^#track\/([\w-]+)/) || [])[1]
 
   useEffect(() => {
     if (!st.uid) return
     return watchUser(st.uid, (u) => setUser(u && !u.deleted ? u : null))
   }, [st.uid])
 
-  const ready = st.ready && (st.error || user !== undefined)
+  const ready = st.ready && (st.error || user !== undefined || !!trackKey)
   const ctx = { ...st, user, kind: 'rider' }
 
   return (
@@ -39,7 +41,8 @@ export default function App() {
       <Splash done={ready} />
       {ready && st.error && <div className="empty" style={{ paddingTop: 120 }}><b>{tr('ما قدرناش نتكونيكتاو', 'Connection failed')}</b><div className="small">{st.error}</div><button className="btn btn-primary mt" onClick={() => location.reload()}>{tr('عاود', 'Retry')}</button></div>}
       {ready && !st.error && (
-        st.settings.maintenance?.on ? <Maintenance message={st.settings.maintenance.message} support={st.settings.support} />
+        trackKey ? <Track shareKey={trackKey} />
+        : st.settings.maintenance?.on ? <Maintenance message={st.settings.maintenance.message} support={st.settings.support} />
         : !onb ? <Onboarding onDone={() => { localStorage.setItem('w_onb', '1'); setOnb(true) }} />
           : !user ? <Register uid={st.uid} />
             : user.blocked ? <div className="empty" style={{ paddingTop: 140 }}><b>{tr('الحساب موقوف مؤقتًا', 'Account suspended')}</b><div className="small">{tr('تواصل مع الدعم لمزيد من المعلومات', 'Please contact support')}</div><a className="btn btn-primary mt" href={`https://wa.me/${st.settings.support.whatsapp}`}>{tr('تواصل مع الدعم', 'Contact support')}</a></div>

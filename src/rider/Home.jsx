@@ -79,6 +79,21 @@ export default function Home() {
     if (ride.status === 'completed' && !ride.charged) settleRide(uid, ride).catch(() => {})
   }, [ride?.id, ride?.status, settings.fleetSimulation])
 
+  // مرآة عامة للكورسة (لشخص آخر) باش يتبّعها من الرابط بلا تطبيق
+  const shared = rides.find((x) => x.shareKey && Date.now() - (x.createdAt || 0) < 6 * 3600e3)
+  const shareSig = shared && `${shared.status}|${shared.driverLoc?.coords?.join()}|${shared.driver?.name}|${Math.round((shared.progress || 0) * 50)}`
+  useEffect(() => {
+    if (!shared) return
+    const d = shared.driver || {}
+    store.set(`shares/${shared.shareKey}`, {
+      uid, rideId: shared.id, status: shared.status, passenger: shared.forOther?.name || '', by: user.name,
+      driver: d.name ? { name: d.name, car: d.car || '', color: d.color || '', plate: d.plate || '', phone: d.phone || '', rating: d.rating || 5, photo: d.photo || '' } : null,
+      driverLoc: shared.driverLoc || null, pickup: { title: shared.pickup.title, coords: shared.pickup.coords }, dropoff: { title: shared.dropoff.title, coords: shared.dropoff.coords },
+      route: shared.status === 'ongoing' ? shared.route?.coords || null : null, progress: shared.progress || 0, durationMin: shared.route?.durationMin || 0,
+      fare: shared.fare?.total || 0, payment: shared.payment, updatedAt: Date.now(),
+    }).catch(() => {})
+  }, [shareSig])
+
   // تنبيهات تغيّر الحالة
   const prevStatus = useRef(null)
   useEffect(() => {
@@ -105,13 +120,16 @@ export default function Home() {
   }
 
   // ===== بدء الطلب =====
-  const openSearch = (focus = 'dropoff', extra = {}) => {
+  const hereP = () => (me ? { coords: me, title: tr('البلاصة اللي راني فيها', 'Current location'), current: true } : null)
+  // initialDraft: آخر حالة للنقاط (لا نعتمد على draft من الإغلاق لأنه قد يكون قديمًا)
+  const openSearch = (focus = 'dropoff', extra = {}, initialDraft) => {
+    const init = initialDraft || draft || { pickup: hereP(), dropoff: null, stops: [] }
     nav.push('search', {
       focus,
-      initial: draft || { pickup: me ? { coords: me, title: tr('البلاصة اللي راني فيها', 'Current location'), current: true } : null, dropoff: null, stops: [] },
+      initial: { pickup: init.pickup || null, dropoff: init.dropoff || null, stops: init.stops || [] },
       near: base,
       onDone: (d) => { setDraft(d); setPick(null) },
-      onPickMap: (target, d) => { setDraft(d); setPick({ target, coords: mapRef.current?.center() || base }) },
+      onPickMap: (target, d) => { setDraft(d); startPick(target, d) },
       ...extra,
     })
   }
@@ -127,16 +145,25 @@ export default function Home() {
     const r = await reverse(c)
     setPick((p) => (p && Math.abs(p.coords[0] - c[0]) < 1e-9 ? { ...p, label: r } : p))
   }
-  useEffect(() => { if (pick && !pick.label) onMoveEnd(mapRef.current?.center() || base) }, [!!pick])
+  // بدء التحديد على الخريطة: الدبوس يبدأ من النقطة المختارة سابقًا إن وُجدت
+  const startPick = (target, d = draft) => {
+    const at = (target === 'pickup' ? d?.pickup?.coords : target === 'dropoff' ? d?.dropoff?.coords : null) || mapRef.current?.center() || me || base
+    setPick({ target, coords: at, label: null })
+    reverse(at).then((r) => setPick((p) => (p && p.target === target && p.coords === at ? { ...p, label: r } : p)))
+    setTimeout(() => mapRef.current?.flyTo(at, Math.max(16, mapRef.current?.map()?.getZoom() || 16), { duration: 700 }), 30)
+  }
   const confirmPick = () => {
-    const place = { ...(pick.label || { title: tr('بلاصة محددة', 'Pinned') }), coords: pick.coords }
+    const place = { ...(pick.label || { title: tr('بلاصة محددة', 'Pinned') }), coords: pick.coords, current: false }
     const d = { pickup: null, dropoff: null, stops: [], ...draft }
     if (pick.target === 'pickup') d.pickup = place
     else if (pick.target === 'stop') d.stops = [...(d.stops || []), place]
     else d.dropoff = place
+    setDraft(d)
+    haptic()
+    // النقطة الثانية تتحدد مباشرة على الخريطة بلا رجوع للبحث
+    if (!d.dropoff) return startPick('dropoff', d)
+    if (!d.pickup) return startPick('pickup', d)
     setPick(null)
-    if (d.pickup && d.dropoff) setDraft(d)
-    else { setDraft(d); openSearch(d.pickup ? 'dropoff' : 'pickup') }
   }
 
   // ===== المرحلة الحالية =====
@@ -180,6 +207,10 @@ export default function Home() {
   if (stage === 'idle' || stage === 'pick') {
     if (me) markers.push({ id: 'me', type: 'me', coords: me })
     markers.push(...allCars)
+    if (stage === 'pick') {
+      if (draft?.pickup && pick.target !== 'pickup') markers.push({ id: 'pu', type: 'pickup', coords: draft.pickup.coords, label: draft.pickup.title })
+      if (draft?.dropoff && pick.target !== 'dropoff') markers.push({ id: 'do', type: 'drop', coords: draft.dropoff.coords, label: draft.dropoff.title })
+    }
   } else if (stage === 'choose') {
     const eta = nearestEta(draft.pickup.coords)
     markers.push({ id: 'pu', type: 'pickup', coords: draft.pickup.coords, label: draft.pickup.title, eta: eta ? mins(eta) : null })
@@ -235,7 +266,12 @@ export default function Home() {
 
       <DragPanel key={stage} resetKey={stage} peek={stage === 'idle' ? 150 : 128} onVisible={setPanelH}>
         {stage === 'idle' && <IdlePanel user={user} wx={wx} onSearch={openSearch} onPlace={quickPlace} rides={rides} nav={nav} settings={settings} />}
-        {stage === 'pick' && <PickPanel pick={pick} onConfirm={confirmPick} onCancel={() => { setPick(null); openSearch(pick.target) }} />}
+        {stage === 'pick' && <PickPanel pick={pick} draft={draft} onConfirm={confirmPick} onSwitch={(t) => {
+          // نحفظ النقطة الحالية قبل التبديل باش ما تضيعش
+          let d = draft
+          if (pick.label && pick.target !== 'stop') { d = { pickup: null, dropoff: null, stops: [], ...draft, [pick.target]: { ...pick.label, coords: pick.coords, current: false } }; setDraft(d) }
+          startPick(t, d)
+        }} onCancel={() => { const t = pick.target; setPick(null); openSearch(t, {}, draft) }} />}
         {stage === 'choose' && <ChoosePanel draft={draft} rt={rt} user={user} settings={settings} uid={uid} eta={nearestEta(draft.pickup.coords)} carsN={allCars.length} onEdit={() => openSearch('dropoff')} onBooked={() => setDraft(null)} />}
         {stage === 'searching' && <SearchingPanel ride={ride} settings={settings} />}
         {['accepted', 'arrived', 'ongoing'].includes(stage) && <TripPanel ride={ride} approach={approach} nav={nav} uid={uid} user={user} />}
@@ -315,19 +351,36 @@ function IdlePanel({ user, wx, onSearch, onPlace, rides, nav, settings }) {
   )
 }
 
-function PickPanel({ pick, onConfirm, onCancel }) {
+function PickPanel({ pick, draft, onConfirm, onCancel, onSwitch }) {
   const titles = { pickup: tr('حدد وين يجيبك الشيفور', 'Set pickup'), dropoff: tr('حدد وين رايح', 'Set destination'), stop: tr('حدد الوقفة', 'Set stop') }
+  const row = (k, p, dot) => {
+    const on = pick.target === k
+    const label = on ? pick.label : p
+    return (
+      <button className={`pick-row ${on ? 'on' : ''}`} onClick={() => !on && onSwitch(k)}>
+        <span className={`dot ${dot}`} />
+        <span className="pt">
+          <small>{k === 'pickup' ? tr('منين', 'From') : tr('لوين', 'To')}</small>
+          {on && !label ? <div className="skeleton" style={{ height: 14, width: '60%', marginTop: 3 }} /> : <b>{label?.title || tr('اضغط باش تحددها', 'Tap to set')}</b>}
+        </span>
+        {on ? <span className="badge brand">{tr('حرّك الخريطة', 'Move map')}</span> : p ? <Check size={18} color="var(--success)" /> : null}
+      </button>
+    )
+  }
   return (
     <div className="rise">
       <h3 style={{ margin: '0 0 4px', fontSize: 18 }}>{titles[pick.target]}</h3>
-      <div className="small muted" style={{ marginBottom: 12 }}>{tr('حرّك الخريطة باش تحط الدبوس في البلاصة الصحيحة', 'Move the map to place the pin')}</div>
-      <div className="place-row" style={{ background: 'var(--card-2)', borderRadius: 16, padding: 12 }}>
-        <span className="pi" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}><MapPin size={18} /></span>
-        <span className="pt">{pick.label ? <><b>{pick.label.title}</b><small>{pick.label.subtitle}</small></> : <><div className="skeleton" style={{ height: 14, width: '60%' }} /><div className="skeleton" style={{ height: 10, width: '40%', marginTop: 6 }} /></>}</span>
-      </div>
+      <div className="small muted" style={{ marginBottom: 10 }}>{tr('حرّك الخريطة باش تحط الدبوس في البلاصة الصحيحة', 'Move the map to place the pin')}</div>
+      {pick.target === 'stop' ? (
+        <div className="pick-row on"><span className="dot stop" /><span className="pt">{pick.label ? <b>{pick.label.title}</b> : <div className="skeleton" style={{ height: 14, width: '60%' }} />}</span></div>
+      ) : (
+        <div className="pick-rows">{row('pickup', draft?.pickup, 'a')}{row('dropoff', draft?.dropoff, 'b')}</div>
+      )}
       <div className="flex mt">
-        <button className="btn btn-ghost" onClick={onCancel}><Search size={18} /></button>
-        <button className="btn btn-primary grow" disabled={!pick.label || pick.moving} onClick={onConfirm}>{tr('أكّد البلاصة', 'Confirm location')}</button>
+        <button className="btn btn-ghost" onClick={onCancel} aria-label="search"><Search size={18} /></button>
+        <button className="btn btn-primary grow" disabled={!pick.label || pick.moving} onClick={onConfirm}>
+          {pick.target === 'pickup' ? (draft?.dropoff ? tr('أكّد نقطة الانطلاق', 'Confirm pickup') : tr('أكّد وحدد الوجهة', 'Confirm & set destination')) : pick.target === 'dropoff' ? (draft?.pickup ? tr('أكّد الوجهة', 'Confirm destination') : tr('أكّد وحدد الانطلاق', 'Confirm & set pickup')) : tr('أكّد الوقفة', 'Confirm stop')}
+        </button>
       </div>
     </div>
   )
@@ -350,6 +403,7 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
   const [other, setOther] = useState(null) // {name, phone}
   const [otherOpen, setOtherOpen] = useState(false)
   const [women, setWomen] = useState(false)
+  const [rp, setRp] = useState(() => user.prefs?.ride || [])
   const ft = settings.features || {}
   const demand = demandFactor(0, carsN)
   const stu = ft.students !== false && studentActive(user, settings.students) ? { pct: settings.students.discount, max: settings.students.maxDiscount } : null
@@ -375,8 +429,8 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
         riderId: uid, riderName: user.name, riderPhone: user.phone, riderRating: user.rating || 5, city: user.city,
         pickup: strip(draft.pickup), dropoff: strip(draft.dropoff), stops: (draft.stops || []).map(strip),
         route: { coords: rt.coords, distanceKm: +rt.distanceKm.toFixed(2), durationMin: +rt.durationMin.toFixed(1) },
-        classId: cls, className: c.ar, fare: q, payment: pay, offer: offer || null, forOther: other, womenOnly: women,
-        pin: ft.tripPin !== false && user.prefs?.tripPin !== false ? String(1000 + Math.floor(Math.random() * 9000)) : null, student: !!stu, pointsCost: pay === 'points' ? daToPoints(q.total, settings.rewards) : 0, promoCode: promo?.code || '', note, scheduledAt: when ? new Date(when).getTime() : null,
+        classId: cls, className: c.ar, fare: q, payment: pay, offer: offer || null, prefs: rp, forOther: other, shareKey: other ? Math.random().toString(36).slice(2, 10) + Date.now().toString(36) : null, womenOnly: women,
+        pin: ft.tripPin !== false && !other && user.prefs?.tripPin !== false ? String(1000 + Math.floor(Math.random() * 9000)) : null, student: !!stu, pointsCost: pay === 'points' ? daToPoints(q.total, settings.rewards) : 0, promoCode: promo?.code || '', note, scheduledAt: when ? new Date(when).getTime() : null,
       })
       if (promo) store.set(`promos/${promo.code}`, { used: store.inc(1) }, true).catch(() => {})
       haptic('medium')
@@ -433,6 +487,7 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
         {ft.offerPrice !== false && <button className={`chip ${offer ? 'brand' : ''}`} onClick={() => setOfferOpen(true)}><HandCoins size={15} />{offer ? <span className="num">{money(offer)}</span> : tr('اقترح سومتك', 'Offer fare')}</button>}
         {ft.rideForOther !== false && <button className={`chip ${other ? 'brand' : ''}`} onClick={() => setOtherOpen(true)}><UserRound size={15} />{other ? other.name : tr('لشخص آخر', 'For someone')}</button>}
         {ft.womenDrivers !== false && <button className={`chip ${women ? 'brand' : ''}`} onClick={() => { setWomen(!women); haptic(); if (!women) toast(tr('راح نقلبو على شيفورة مرا 👩', 'Looking for a woman driver 👩')) }}>👩 {tr('شيفورة مرا', 'Woman driver')}</button>}
+        {RIDE_PREFS.map(([k, ic, ar, en]) => <button key={k} className={`chip ${rp.includes(k) ? 'brand' : ''}`} onClick={() => { const v = rp.includes(k) ? rp.filter((x) => x !== k) : [...rp, k]; setRp(v); haptic(); updateUser(uid, { prefs: { ...(user.prefs || {}), ride: v } }).catch(() => {}) }}>{ic} {tr(ar, en)}</button>)}
         <button className={`chip ${when ? 'brand' : ''}`} onClick={() => setSchedOpen(true)}><CalendarClock size={15} />{when ? new Date(when).toLocaleString(isAr ? 'ar-DZ' : 'en', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : tr('برمج', 'Schedule')}</button>
       </div>
       <button className="btn btn-primary btn-block btn-lg" disabled={!q || busy} onClick={book}>
@@ -441,7 +496,7 @@ function ChoosePanel({ draft, rt, user, settings, uid, eta, carsN, onEdit, onBoo
 
       <PromoSheet open={promoOpen} onClose={() => setPromoOpen(false)} onApply={applyPromo} />
       {q0 && <OfferSheet open={offerOpen} onClose={() => setOfferOpen(false)} base={q0.total} min={Math.max(pricing.classes.find((c) => c.id === cls)?.min || 0, q0.total * 0.75)} step={pricing.roundTo || 10} value={offer} onApply={(v) => { setOffer(v); setOfferOpen(false) }} />}
-      <OtherSheet open={otherOpen} onClose={() => setOtherOpen(false)} value={other} onApply={(v) => { setOther(v); setOtherOpen(false) }} />
+      <OtherSheet user={user} uid={uid} open={otherOpen} onClose={() => setOtherOpen(false)} value={other} onApply={(v) => { setOther(v); setOtherOpen(false) }} />
       <Sheet open={noteOpen} onClose={() => setNoteOpen(false)} title={tr('ملاحظة للشيفور', 'Note to driver')} sub={tr('مثال: راني قدام الفارماسي، معايا شنطة كبيرة', 'e.g. I am next to the pharmacy')}>
         <textarea className="input" value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder={tr('اكتب ملاحظتك…', 'Write a note…')} />
         <button className="btn btn-primary btn-block mt" onClick={() => setNoteOpen(false)}>{tr('حفظ', 'Save')}</button>
@@ -511,6 +566,8 @@ function CancelSheet({ open, onClose, ride }) {
   )
 }
 
+export const RIDE_PREFS = [['ac', '❄️', 'كليماتيزور', 'A/C'], ['quiet', '🤫', 'كورسة هادية', 'Quiet ride'], ['bag', '🧳', 'شنطة كبيرة', 'Big luggage'], ['child', '👶', 'كرسي طفل', 'Child seat']]
+
 // ===== اقترح سومتك (مثل inDrive) =====
 function OfferSheet({ open, onClose, base, min, step, value, onApply }) {
   const r = (x) => Math.round(x / step) * step
@@ -539,19 +596,56 @@ function OfferSheet({ open, onClose, base, min, step, value, onApply }) {
   )
 }
 
-function OtherSheet({ open, onClose, value, onApply }) {
+function OtherSheet({ open, onClose, value, onApply, user, uid }) {
   const [n, setN] = useState(value?.name || '')
-  const [p, setP] = useState(value?.phone || '')
+  const [p, setP] = useState(value?.phone?.replace('+213', '') || '')
+  const [save, setSave] = useState(true)
+  const contacts = user?.contacts || []
+  const ok = n.trim().length >= 2 && p.replace(/\D/g, '').length >= 9
+  const apply = (c) => onApply(c)
+  const confirm = () => {
+    const c = { name: n.trim(), phone: '+213' + p.replace(/\D/g, '').replace(/^0+/, '').replace(/^213/, '') }
+    if (save && !contacts.some((x) => x.phone === c.phone)) updateUser(uid, { contacts: [c, ...contacts].slice(0, 8) }).catch(() => {})
+    apply(c)
+  }
   return (
-    <Sheet open={open} onClose={onClose} title={tr('الكورسة لشخص آخر', 'Ride for someone else')} sub={tr('الشيفور يعيّط للشخص هذا، وحنا نبعثولو تفاصيل الكورسة', 'The driver will contact this person')}>
+    <Sheet open={open} onClose={onClose} title={tr('الكورسة لشخص آخر', 'Ride for someone else')} sub={tr('الشيفور يشوف الاسم والرقم ويعيّطلو مباشرة، وتقدر تبعثلو تفاصيل الكورسة ورابط التتبّع في واتساب', 'The driver sees and can call this person; share details and live tracking on WhatsApp')}>
+      {contacts.length > 0 && (
+        <div className="hscroll" style={{ marginBottom: 12 }}>
+          {contacts.map((c) => (
+            <button key={c.phone} className={`chip ${value?.phone === c.phone ? 'brand' : ''}`} onClick={() => apply(c)}><UserRound size={15} />{c.name}</button>
+          ))}
+        </div>
+      )}
       <div className="field"><label>{tr('الاسم', 'Name')}</label><div className="input-wrap"><UserRound size={18} /><input className="input" value={n} onChange={(e) => setN(e.target.value)} placeholder={tr('مثلا: ماما', 'e.g. Mom')} /></div></div>
       <div className="field"><label>{tr('رقم التيليفون', 'Phone')}</label><div className="phone-in"><div className="cc">🇩🇿 +213</div><input className="input" inputMode="tel" value={p} onChange={(e) => setP(e.target.value)} placeholder="661 23 45 67" /></div></div>
+      <label className="flex small mt" style={{ gap: 8 }}><input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} style={{ accentColor: 'var(--brand)', width: 18, height: 18 }} />{tr('احفظ هذا الشخص للمرات الجاية', 'Save this contact')}</label>
+      <div className="tiny muted mt">{tr('ملاحظة: كورسات الأشخاص الآخرين بلا كود PIN، باش الراكب يطلع مباشرة.', 'Rides for others need no PIN.')}</div>
       <div className="flex mt" style={{ gap: 8 }}>
         {value && <button className="btn btn-ghost" onClick={() => { setN(''); setP(''); onApply(null) }}>{tr('أنا اللي راكب', "It's me")}</button>}
-        <button className="btn btn-primary grow" disabled={n.trim().length < 2 || p.replace(/\D/g, '').length < 9} onClick={() => onApply({ name: n.trim(), phone: '+213' + p.replace(/\D/g, '').replace(/^0+/, '') })}>{tr('أكّد', 'Confirm')}</button>
+        <button className="btn btn-primary grow" disabled={!ok} onClick={confirm}>{tr('أكّد', 'Confirm')}</button>
       </div>
     </Sheet>
   )
+}
+
+// رسالة واتساب جاهزة للراكب (كورسة لشخص آخر)
+export function trackUrl(ride) { return `${SITE_URL || location.origin}/app/#track/${ride.shareKey}` }
+function waLink(ride) {
+  const d = ride.driver || {}
+  const pay = ride.payment === 'cash' ? tr(`💰 السومة: ${money(ride.fare?.total)} (كاش للشيفور)`, `💰 Fare: ${money(ride.fare?.total)} (cash)`) : tr('💳 الكورسة مخلّصة، ما تخلّص والو', '💳 Already paid')
+  const lines = [
+    tr(`السلام عليكم ${ride.forOther.name} 👋`, `Hi ${ride.forOther.name} 👋`),
+    tr(`طلبتلك كورسة مع وصلني 🚗`, 'I booked you a Wasalni ride 🚗'),
+    d.name ? tr(`👨‍✈️ الشيفور: ${d.name} ⭐ ${d.rating || 5}`, `👨‍✈️ Driver: ${d.name} ⭐ ${d.rating || 5}`) : tr('⏳ راهو يتقلّب على شيفور…', '⏳ Finding a driver…'),
+    d.car ? tr(`🚙 ${d.car} ${d.color || ''} • ${d.plate}`, `🚙 ${d.car} ${d.color || ''} • ${d.plate}`) : null,
+    d.phone ? tr(`📞 رقم الشيفور: ${d.phone}`, `📞 Driver: ${d.phone}`) : null,
+    tr(`📍 من: ${ride.pickup.title}`, `📍 From: ${ride.pickup.title}`),
+    tr(`🏁 إلى: ${ride.dropoff.title}`, `🏁 To: ${ride.dropoff.title}`),
+    pay,
+    ride.shareKey ? tr(`🗺️ تبّع الطوموبيل مباشرة: ${trackUrl(ride)}`, `🗺️ Live tracking: ${trackUrl(ride)}`) : null,
+  ].filter(Boolean)
+  return `https://wa.me/${ride.forOther.phone.replace(/\D/g, '')}?text=${encodeURIComponent(lines.join('\n'))}`
 }
 
 // ===== الرحلة الجارية =====
@@ -590,6 +684,12 @@ function TripPanel({ ride, approach, nav, uid, user }) {
           <small>{ride.status === 'arrived' ? tr('وصل', 'Here') : tr('دقيقة', 'min')}</small>
         </div>
       </div>
+      {ride.forOther && (
+        <a className="wa-share" href={waLink(ride)} target="_blank" rel="noreferrer">
+          <span className="wi"><MessageCircle size={20} /></span>
+          <span className="grow"><b>{tr(`ابعث التفاصيل لـ ${ride.forOther.name}`, `Send details to ${ride.forOther.name}`)}</b><small>{tr('في واتساب: الشيفور، الطوموبيل، الماتريكول ورابط التتبّع المباشر', 'WhatsApp: driver, car, plate and live tracking')}</small></span>
+        </a>
+      )}
       {ride.pin && ride.status !== 'ongoing' && (
         <div className="pin-strip"><KeyRound size={18} /><span className="grow">{tr('عطي هذا الكود للشيفور باش يبدا الكورسة', 'Share this PIN with your driver')}</span><b className="num">{ride.pin.split('').map((d, i) => <i key={i}>{d}</i>)}</b></div>
       )}

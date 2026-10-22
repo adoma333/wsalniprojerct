@@ -42,7 +42,8 @@ export function BankCard({ type = 'edahabia', number = '', name = '', exp = '', 
 
 export default function TopUp({ initial }) {
   const nav = useNav()
-  const { uid, user, settings } = useApp()
+  const { uid, user, settings, kind } = useApp()
+  const who = kind === 'driver' ? 'driver' : 'rider'
   const pay = settings.payments
   const [amount, setAmount] = useState(initial || pay.presets?.[1] || 1000)
   const [method, setMethod] = useState(null)
@@ -71,7 +72,7 @@ export default function TopUp({ initial }) {
     setBusy(true)
     await new Promise((r) => setTimeout(r, 1600))
     try {
-      const r = await topUp(uid, { amount, method, last4: card.number.replace(/\D/g, '').slice(-4) }, pay)
+      const r = await topUp(uid, { amount, method, last4: card.number.replace(/\D/g, '').slice(-4) }, pay, who)
       setResult(r); setStep('done'); haptic('heavy')
     } catch (e) { toast(e.message, 'error') }
     setBusy(false)
@@ -79,13 +80,13 @@ export default function TopUp({ initial }) {
   const sendBaridi = async () => {
     if (!receipt) return toast(tr('حمّل تصويرة الوصل', 'Upload the receipt'), 'error')
     setBusy(true)
-    const r = await topUp(uid, { amount, method: 'baridimob', receipt }, pay).catch((e) => toast(e.message, 'error'))
+    const r = await topUp(uid, { amount, method: 'baridimob', receipt }, pay, who).catch((e) => toast(e.message, 'error'))
     setBusy(false)
     if (r) { setResult(r); setStep('done') }
   }
   const sendVoucher = async () => {
     setBusy(true)
-    const r = await redeemVoucher(uid, code).catch((e) => ({ ok: false, msg: e.message }))
+    const r = await redeemVoucher(uid, code, who).catch((e) => ({ ok: false, msg: e.message }))
     setBusy(false)
     if (r.ok) { setResult({ status: 'paid', amount: r.amount, id: code }); setStep('done') } else toast(r.msg, 'error')
   }

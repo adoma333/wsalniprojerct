@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  GraduationCap, ScanLine, CreditCard, Landmark, Ticket, KeyRound, UserRound, HandCoins, Share2, Trophy, SlidersHorizontal, ArrowUpRight, Layers, Box,
   Smartphone, Apple, Car, MapPin, ShieldCheck, Wallet, CalendarClock, Gift, Star, Heart, MessageCircle, Send, Zap, Navigation, Clock, Users,
   ChevronDown, Sun, Moon, Banknote, TrendingUp, Headphones, Sparkles, Play, Check, Languages, X,
 } from 'lucide-react'
@@ -61,6 +62,8 @@ export default function Landing() {
           <div className="links">
             <a href="#features">{tr('المميزات', 'Features')}</a>
             <a href="#free">{tr('اركب بلاش', 'Ride free')}</a>
+            <a href="#students">{tr('الطلبة', 'Students')}</a>
+            <a href="#safety">{tr('الأمان', 'Safety')}</a>
             <a href="#prices">{tr('السومة', 'Prices')}</a>
             <a href="#drivers">{tr('الشيفورات', 'Drivers')}</a>
             <a href="#faq">{tr('الأسئلة', 'FAQ')}</a>
@@ -78,17 +81,21 @@ export default function Landing() {
 
       <section className="sec">
         <div className="wrap stats-row reveal">
-          <div className="stat-box"><Counter to={12} /><small>{tr('ولايات جزائرية', 'Algerian wilayas')}</small></div>
-          <div className="stat-box"><Counter to={100} suffix="+" /><small>{tr('ريل إشهاري', 'Ad reels')}</small></div>
-          <div className="stat-box"><Counter to={100} suffix={tr(' نقطة', ' pts')} /><small>{tr('على كل مشاهدة كاملة', 'per full view')}</small></div>
+          <div className="stat-box"><Counter to={CITIES.length} /><small>{tr('ولايات جزائرية', 'Algerian wilayas')}</small></div>
+          <div className="stat-box"><Counter to={100} suffix={tr(' نقطة', ' pts')} /><small>{tr('على كل إعلان تشوفو', 'per ad watched')}</small></div>
+          <div className="stat-box"><Counter to={DEFAULT_SETTINGS.students.discount} suffix="%" /><small>{tr('تخفيض للطلبة', 'Student discount')}</small></div>
           <div className="stat-box"><Counter to={24} suffix="/7" /><small>{tr('دعم ومتابعة', 'Support')}</small></div>
         </div>
       </section>
 
       <FreeRides />
       <Features />
+      <Students />
       <Estimator />
+      <Payments />
+      <Safety />
       <Drivers />
+      <Wilayas />
       <Testimonials />
       <Faq />
 
@@ -154,12 +161,12 @@ function Hero({ onIos }) {
       <div className="grid-bg" />
       <div className="wrap hero-in">
         <div>
-          <span className="pill rise"><b>{tr('جديد', 'New')}</b>{tr('اربح 100 نقطة على كل إشهار تشوفو', 'Earn 100 points for every ad')}</span>
+          <span className="pill rise"><b>{tr('جديد', 'New')}</b>{tr(`خصم ${DEFAULT_SETTINGS.students.discount}% للطلبة • اقترح سومتك • شحن بالذهبية`, `${DEFAULT_SETTINGS.students.discount}% student discount • Offer your fare`)}</span>
           <h1 className="rise" style={{ animationDelay: '.1s' }}>
             {tr('كورستك', 'Your ride,')} <span className="rot"><span key={w} className="hl">{tr(...WORDS[w])}</span></span><br />
             {tr('مع وصلني', 'with Wasalni')}
           </h1>
-          <p className="lead rise" style={{ animationDelay: '.2s' }}>{tr('اطلب طاكسي في ثواني، تبّع الشيفور مباشرة في الخريطة، وخلّص كاش ولا من البورتفاي… ولا اركب بلاش بنقاط الريلز.', 'Request a ride in seconds, track your driver live, pay cash or wallet… or ride completely free with reel points.')}</p>
+          <p className="lead rise" style={{ animationDelay: '.2s' }}>{tr('اطلب كورستك في ثواني، اختار أي بلاصة على الخريطة، تبّع الشيفور مباشرة، وخلّص كاش ولا بالبطاقة الذهبية… ولا اركب بلاش بنقاط الإعلانات.', 'Request a ride in seconds, track your driver live, pay cash or wallet… or ride completely free with reel points.')}</p>
           <div className="ctas rise" style={{ animationDelay: '.3s' }}>
             <a className="store-btn primary" href={APK_RIDER} download><Smartphone size={28} /><span><small>{tr('حمّل دروك', 'Download')}</small><b>Android APK</b></span></a>
             <button className="store-btn glass" onClick={onIos}><Apple size={28} /><span><small>{tr('حلّو على', 'Open on')}</small><b>iPhone</b></span></button>
@@ -168,6 +175,7 @@ function Hero({ onIos }) {
           <div className="trust rise" style={{ animationDelay: '.4s' }}>
             <div><b className="num">4.9★</b><small>{tr('تقييم الزبائن', 'Rider rating')}</small></div>
             <div><b className="num">3 {tr('د', 'min')}</b><small>{tr('وقت وصول الشيفور', 'Avg pickup')}</small></div>
+            <div><b className="num">-{DEFAULT_SETTINGS.students.discount}%</b><small>{tr('للطلبة الجامعيين', 'For students')}</small></div>
             <div><b className="num">0 {tr('دج', 'DA')}</b><small>{tr('كورسات بلاش بالنقاط', 'Free rides')}</small></div>
           </div>
         </div>
@@ -178,6 +186,7 @@ function Hero({ onIos }) {
           </div>
           <div className="float-card c1" style={{ top: 70, insetInlineStart: -10 }}><span className="fi" style={{ background: '#fff1e6', color: '#E8650A' }}><Gift size={20} /></span><span><b>+100 {tr('نقطة', 'pts')}</b><small>{tr('ربحتها من إشهار', 'Earned from an ad')}</small></span></div>
           <div className="float-card c2" style={{ top: 250, insetInlineEnd: -10, animationDelay: '-2s' }}><span className="fi" style={{ background: '#e8faf1', color: '#12B76A' }}><ShieldCheck size={20} /></span><span><b>{tr('شيفور موثّق', 'Verified driver')}</b><small>★ 4.9 • {tr('سامبول بيضاء', 'White Symbol')}</small></span></div>
+          <div className="float-card c3" style={{ bottom: 60, insetInlineEnd: -16, animationDelay: '-1.2s' }}><span className="fi" style={{ background: '#EEF4FF', color: '#3538CD' }}><GraduationCap size={20} /></span><span><b>{tr(`-${DEFAULT_SETTINGS.students.discount}% طالب`, `-${DEFAULT_SETTINGS.students.discount}% student`)}</b><small>{tr('تفعّل في ثانيتين', 'Activated in 2s')}</small></span></div>
           <div className="float-card" style={{ bottom: 150, insetInlineStart: -20, animationDelay: '-3.5s' }}><span className="fi" style={{ background: '#eaf3ff', color: '#2E90FA' }}><Clock size={20} /></span><span><b>{tr('يوصل في 3 دقايق', 'Arrives in 3 min')}</b><small>{tr('اقتصادي • 350 دج', 'Economy • 350 DA')}</small></span></div>
         </div>
       </div>
@@ -233,7 +242,7 @@ function FreeRides() {
   }, [])
   const C = 2 * Math.PI * 25
   const steps = [
-    [tr('شوف ريل إشهاري', 'Watch an ad reel'), tr('ريلز قصار كيما إنستغرام: جام، علّق، بارتاجي واستمتع.', 'Short reels like Instagram: like, comment, share.')],
+    [tr('شوف إعلان قصير', 'Watch a short ad'), tr('إعلانات قصيرة بالشاشة كاملة من محلات ولايتك، تشوفها حتى للخر.', 'Full-screen short ads from local businesses.')],
     [tr('اربح 100 نقطة في بلاصتها', 'Earn 100 points instantly'), tr('كي تكمّل المشاهدة يتزاد الكادو في رصيدك مع احتفال صغير 🎉', 'Reward lands in your balance the moment it ends 🎉')],
     [tr('اطلب كورستك بلاش', 'Ride for free'), tr('اختار الخلاص بالنقاط كي تطلب، والكورسة تجيك بصفر دينار.', 'Choose points at checkout and pay nothing.')],
   ]
@@ -261,9 +270,9 @@ function FreeRides() {
               <div style={{ position: 'absolute', top: 14, insetInline: 14, height: 3, borderRadius: 3, background: 'rgba(255,255,255,.3)' }}><i style={{ display: 'block', height: '100%', width: (step === 0 ? p : 100) + '%', background: '#fff', borderRadius: 3 }} /></div>
               <div className="ring">
                 <svg width="60" height="60"><circle cx="30" cy="30" r="25" fill={step > 0 ? '#12B76A' : 'rgba(0,0,0,.35)'} stroke="rgba(255,255,255,.2)" strokeWidth="5" /><circle cx="30" cy="30" r="25" fill="none" stroke="#FFC94A" strokeWidth="5" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={step === 0 ? C * (1 - p / 100) : 0} /></svg>
-                <b style={{ color: step > 0 ? '#fff' : '#ffd36b' }}>{step > 0 ? '✓' : '+5'}</b>
+                <b style={{ color: step > 0 ? '#fff' : '#ffd36b', fontSize: 12 }}>{step > 0 ? '✓' : '+100'}</b>
               </div>
-              {step === 1 && <div className="coin" key={'c' + step}>+5</div>}
+              {step === 1 && <div className="coin" key={'c' + step} style={{ fontSize: 26 }}>+100</div>}
               {step === 2 && (
                 <div className="pop" style={{ position: 'absolute', top: '36%', insetInline: 18, background: '#fff', color: '#18120e', borderRadius: 20, padding: 16, textAlign: 'center' }}>
                   <ClassCar type="eco" w={70} />
@@ -271,8 +280,7 @@ function FreeRides() {
                   <small style={{ color: '#12B76A', fontWeight: 600 }}>{tr('مخلّصة بنقاط الكادوات', 'Paid with reward points')}</small>
                 </div>
               )}
-              <div className="side"><span><Heart size={26} fill="#ff3b5c" color="#ff3b5c" /><br />12K</span><span><MessageCircle size={26} /><br />340</span><span><Send size={24} /><br />98</span></div>
-              <div className="meta"><b>{tr('بيتزيريا الدزاير', 'Dzair Pizza')}</b> <span style={{ fontSize: 10, background: 'rgba(255,255,255,.2)', padding: '1px 6px', borderRadius: 5 }}>{tr('سبونسو', 'Sponsored')}</span><div style={{ opacity: 0.9, marginTop: 4 }}>{tr('بيتزا فاميلي بسومة ما تتصدقش 🍕', 'Family pizza deal 🍕')}</div></div>
+              <div className="meta"><b>{tr('بيتزيريا الدزاير', 'Dzair Pizza')}</b> <span style={{ fontSize: 10, background: 'rgba(255,255,255,.2)', padding: '1px 6px', borderRadius: 5 }}>{tr('سبونسو', 'Sponsored')}</span><div style={{ opacity: 0.9, marginTop: 4 }}>{tr('بيتزا فاميلي بسومة ما تتصدقش 🍕', 'Family pizza deal 🍕')}</div><div style={{ marginTop: 10, background: 'var(--grad)', borderRadius: 12, padding: '9px 12px', fontWeight: 700, textAlign: 'center' }}>{tr('اطلب دروك', 'Order now')}</div></div>
             </div>
           </div>
         </div>
@@ -289,14 +297,14 @@ function Features() {
         <div className="bento reveal">
           <div className="b1">
             <span className="bi"><Navigation size={26} /></span>
-            <h3>{tr('تبّع الشيفور مباشرة في الخريطة', 'Live tracking on real maps')}</h3>
-            <p>{tr('شوف طوموبيل الشيفور تتحرك في الطرقان الحقيقيين لحظة بلحظة، مع وقت الوصول والطريق من البلاصة تاعك حتى لوين رايح.', 'Watch your driver move on real roads, with accurate ETAs.')}</p>
+            <h3>{tr('خريطة احترافية وتتبّع مباشر', 'Pro map & live tracking')}</h3>
+            <p>{tr('اختار أي بلاصة بالدبوس، شوف الطوموبيل تتحرك في الطرقان الحقيقيين، وعندك خريطة عادية، قمر صناعي، ليلية و3D.', 'Pin any spot, watch your car move on real roads — standard, satellite, night and 3D.')}</p>
             <div style={{ position: 'absolute', insetInlineEnd: -20, bottom: -30, opacity: 0.95 }}><ClassCar type="comfort" w={260} /></div>
           </div>
-          <div className="b2"><span className="bi"><Banknote size={26} /></span><h3>{tr('السومة واضحة قبل ما تطلب', 'Upfront pricing')}</h3><p>{tr('السومة تتحسب على حساب المسافة والوقت ونوع الطوموبيل وتبان قبل ما تأكد. بلا مفاجآت.', 'Price by distance, time and class — shown before you confirm.')}</p></div>
-          <div className="b3"><span className="bi"><ShieldCheck size={26} /></span><h3>{tr('الأمان في كل كورسة', 'Safety first')}</h3><p>{tr('شيفورات موثّقين بالوثائق، زر طوارئ، وتقدر تبارتاجي الكورسة مع العايلة.', 'Verified drivers, SOS, trip sharing.')}</p></div>
+          <div className="b2"><span className="bi"><HandCoins size={26} /></span><h3>{tr('اقترح سومتك', 'Offer your fare')}</h3><p>{tr('السومة تبان قبل ما تطلب، وإذا حبيت تقترح سومة أخرى والشيفورات يقبلو.', 'See the price upfront — or propose your own.')}</p></div>
+          <div className="b3"><span className="bi"><UserRound size={26} /></span><h3>{tr('كورسة لشخص آخر', 'Ride for someone else')}</h3><p>{tr('اطلب لماما ولا لخوك، والتفاصيل ورابط التتبّع يوصلوهم في واتساب.', 'Book for family; they get details & tracking on WhatsApp.')}</p></div>
           <div className="b4"><span className="bi"><CalendarClock size={26} /></span><h3>{tr('برمج من قبل', 'Schedule ahead')}</h3><p>{tr('احجز كورسة المطار ولا الخدمة من قبل ونبعثولك الشيفور في الوقت.', 'Book airport or work rides in advance.')}</p></div>
-          <div className="b5"><span className="bi"><Wallet size={26} /></span><h3>{tr('بورتفاي وكارطات شحن', 'Wallet & vouchers')}</h3><p>{tr('خلّص كاش، ولا من البورتفاي بكارطات الشحن، ولا بنقاط الكادوات.', 'Cash, wallet top-ups or reward points.')}</p></div>
+          <div className="b5"><span className="bi"><Sparkles size={26} /></span><h3>{tr('تفضيلاتك', 'Your preferences')}</h3><p>{tr('❄️ كليماتيزور، 🤫 كورسة هادية، 🧳 شنطة كبيرة، 👶 كرسي طفل — الشيفور يشوفهم قبل ما يقبل.', 'A/C, quiet ride, luggage, child seat — shown to the driver.')}</p></div>
         </div>
       </div>
     </section>
@@ -349,7 +357,10 @@ function Drivers() {
           <div>
             <div className="perk"><span className="pi"><TrendingUp size={22} /></span><span><b>{tr(`عمولة ${DEFAULT_SETTINGS.pricing.commission}% فقط`, `Only ${DEFAULT_SETTINGS.pricing.commission}% commission`)}</b><small>{tr('والبوربوار ليك كامل', 'Tips are 100% yours')}</small></span></div>
             <div className="perk"><span className="pi"><Clock size={22} /></span><span><b>{tr('انت اللي تختار وقتك', 'You set your hours')}</b><small>{tr('زر واحد وتبدا تستقبل الطلبات', 'One tap to go online')}</small></span></div>
-            <div className="perk"><span className="pi"><MapPin size={22} /></span><span><b>{tr('البلايص اللي فيها طلب بزاف', 'High-demand zones')}</b><small>{tr('نوجهوك للبلايص اللي فيها طلبات أكثر', 'We guide you to busy areas')}</small></span></div>
+            <div className="perk"><span className="pi"><Wallet size={22} /></span><span><b>{tr('بورتفاي خاص بالشيفور', 'Driver wallet')}</b><small>{tr('اشحن بالذهبية ولا CIB، واسحب أرباحك لـ CCP ولا بريدي موب', 'Top up by card, withdraw to CCP or BaridiMob')}</small></span></div>
+            <div className="perk"><span className="pi"><Trophy size={22} /></span><span><b>{tr('تحديات يومية ومكافآت', 'Daily challenges')}</b><small>{tr('كمّل عدد كورسات وتاخذ مكافأة في البورتفاي', 'Complete trips, earn bonuses')}</small></span></div>
+            <div className="perk"><span className="pi"><ScanLine size={22} /></span><span><b>{tr('تفعيل الحساب في دقائق', 'Activate in minutes')}</b><small>{tr('صوّر الوثائق بالكاميرا وتتحقق في بلاصتها', 'Scan your documents, verified instantly')}</small></span></div>
+            <div className="perk"><span className="pi"><SlidersHorizontal size={22} /></span><span><b>{tr('فلتر الطلبات', 'Request filters')}</b><small>{tr('أقصى مسافة، أقل سومة، وطريقة الدفع اللي تحبها', 'Max distance, min fare, payment type')}</small></span></div>
             <div className="perk"><span className="pi"><Headphones size={22} /></span><span><b>{tr('دعم دايم وأمان', 'Always-on support')}</b><small>{tr('فريق متابعة وزر طوارئ في كل كورسة', 'Support team and SOS')}</small></span></div>
             <div className="ctas mt">
               <a className="store-btn primary" href={APK_DRIVER} download><Smartphone size={26} /><span><small>{tr('تطبيق الشيفور', 'Driver app')}</small><b>Android APK</b></span></a>
@@ -392,11 +403,14 @@ function Testimonials() {
 }
 
 const FAQS = [
-  ['الكورسات البلاش صح ولا لا؟', 'صح. كل إشهار تشوفو حتى للخر يزيدلك 100 نقطة، وكي تكفي النقاط للسومة تختار الخلاص بالنقاط والكورسة تولي بلاش كاملة. وتقدر تبدّل النقاط لدراهم في البورتفاي.'],
+  ['الكورسات البلاش صح ولا لا؟', 'صح. كل إعلان تشوفو حتى للخر يزيدلك 100 نقطة، وكي تكفي النقاط للسومة تختار الخلاص بالنقاط والكورسة تولي بلاش كاملة. وتقدر تبدّل النقاط لدراهم في البورتفاي.'],
+  ['كيفاش نفعّل خصم الطالب؟', `من القائمة اختار "خصم الطالب"، عمّر الاسم والجامعة ورقم التسجيل، وصوّر بطاقة الطالب: الكاميرا تكشفها وحدها وتتفعّل في ثانيتين. التخفيض ${DEFAULT_SETTINGS.students.discount}% يتطبّق أوتوماتيك على كل كورسة طول العام الدراسي.`],
+  ['كيفاش نشحن البورتفاي؟', 'اضغط + في البورتفاي واختار: البطاقة الذهبية (بريد الجزائر)، بطاقة CIB، تحويل بريدي موب مع رفع الوصل، ولا كارطة شحن من نقاط البيع.'],
+  ['نقدر نطلب كورسة لواحد من العايلة؟', 'إيه. اختار "لشخص آخر" ودخّل الاسم والرقم. الشيفور يعيّطلو مباشرة، وتبعثلو التفاصيل ورابط التتبّع المباشر في واتساب بضغطة.'],
   ['كيفاش نحمّل التطبيق في الآيفون؟', 'حل رابط التطبيق في Safari، اضغط على زر البارتاج واختار "إضافة إلى الشاشة الرئيسية" ويخدم كتطبيق كامل.'],
-  ['كيفاش تتحسب السومة؟', 'حلّان العداد + سومة على كل كيلومتر + سومة على كل دقيقة على حساب نوع الطوموبيل، مع زيادة صغيرة في الليل ووقت الزحمة. السومة تبان قبل ما تأكد.'],
-  ['كيفاش نولي شيفور؟', 'حمّل تطبيق شيفور وصلني، دخّل المعلومات تاعك وتاع الطوموبيل وحمّل الوثائق، ومن بعد المراجعة تبدا تخدم.'],
-  ['واش هي طرق الخلاص؟', 'كاش للشيفور، ولا من بورتفاي وصلني (تتشحن بكارطات)، ولا بنقاط الكادوات من الريلز.'],
+  ['كيفاش تتحسب السومة؟', 'حلّان العداد + سومة على كل كيلومتر + سومة على كل دقيقة على حساب نوع الطوموبيل، مع زيادة صغيرة في الليل ووقت الزحمة. السومة تبان قبل ما تأكد، وتقدر تقترح سومتك.'],
+  ['كيفاش نولي شيفور؟', 'حمّل تطبيق شيفور وصلني، دخّل المعلومات تاعك وتاع الطوموبيل، وصوّر الوثائق بالكاميرا. الحساب يتفعّل بعد التحقق وتبدا تخدم في بلاصتها.'],
+  ['الشيفور كيفاش يسحب أرباحو؟', 'من البورتفاي يضغط "اسحب" ويختار CCP ولا بريدي موب ولا حساب بنكي. المبلغ يتحوّل خلال 24–48 ساعة، وإذا ترفض الطلب يرجع للرصيد وحدو.'],
 ]
 function Faq() {
   const [o, setO] = useState(0)
@@ -411,6 +425,108 @@ function Faq() {
               {o === i && <div className="a">{a}</div>}
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ===== خصم الطلبة =====
+function Students() {
+  const [ph, setPh] = useState(0)
+  useEffect(() => { const t = setInterval(() => setPh((x) => (x + 1) % 4), 1700); return () => clearInterval(t) }, [])
+  const d = DEFAULT_SETTINGS.students
+  return (
+    <section className="sec" id="students">
+      <div className="wrap stu-grid reveal">
+        <div>
+          <span className="eyebrow" style={{ display: 'inline-flex' }}><GraduationCap size={15} />{tr('للطلبة الجامعيين', 'For students')}</span>
+          <h2 className="h2">{tr(`راك طالب؟ تنقّل بـ -${d.discount}%`, `Student? Ride for -${d.discount}%`)}</h2>
+          <p className="muted lead2">{tr('صوّر بطاقة الطالب بالكاميرا، تتعرّف عليها وحدها وتتفعّل في ثانيتين. التخفيض يتطبّق أوتوماتيك على كل كورسة طول العام الدراسي، وتقدر تجمعو مع النقاط.', 'Scan your student card — detected and activated in seconds. Discount applies automatically all year.')}</p>
+          <div className="stu-steps">
+            {[[ScanLine, tr('صوّر البطاقة داخل الإطار', 'Scan the card in the frame')], [ShieldCheck, tr('التحقق الأوتوماتيكي', 'Automatic verification')], [Check, tr(`-${d.discount}% على كل كورسة (حتى ${d.maxDiscount} دج)`, `-${d.discount}% every ride (up to ${d.maxDiscount} DA)`)]].map(([I, t], i) => (
+              <div key={i} className={ph >= i + 1 ? 'on' : ''}><span><I size={18} /></span>{t}</div>
+            ))}
+          </div>
+          <a className="btn btn-primary btn-lg mt" href="app/"><GraduationCap size={20} />{tr('فعّل خصم الطالب', 'Get student discount')}</a>
+        </div>
+        <div className="scan-demo">
+          <div className={`sd-frame ph${ph}`}>
+            <i className="c tl" /><i className="c tr" /><i className="c bl" /><i className="c br" />
+            <div className="sd-card">
+              <div className="sd-row"><GraduationCap size={22} /><b>{tr('بطاقة طالب', 'Student card')}</b></div>
+              <div className="sd-photo" />
+              <div className="sd-lines"><i /><i /><i /></div>
+            </div>
+            {ph === 1 && <div className="sd-laser" />}
+            {ph >= 2 && <div className="sd-ok"><Check size={34} strokeWidth={3} /></div>}
+          </div>
+          <div className={`sd-msg ${ph >= 2 ? 'ok' : ''}`}>{ph === 0 ? tr('حط البطاقة داخل الإطار', 'Place the card in the frame') : ph === 1 ? tr('تمّ الكشف… نتحققو', 'Detected… verifying') : tr(`تفعّل! -${d.discount}% 🎓`, `Activated! -${d.discount}% 🎓`)}</div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ===== طرق الدفع =====
+function Payments() {
+  const M = [
+    ['edahabia', CreditCard, tr('البطاقة الذهبية', 'Edahabia'), tr('بريد الجزائر — شحن فوري مع رمز التأكيد', 'Algérie Poste — instant with OTP'), 'linear-gradient(135deg,#C9A227,#8B6914)'],
+    ['cib', Landmark, tr('بطاقة CIB', 'CIB card'), tr('كل البنوك الجزائرية عبر SATIM', 'All Algerian banks via SATIM'), 'linear-gradient(135deg,#0F766E,#064E3B)'],
+    ['baridimob', Smartphone, tr('بريدي موب', 'BaridiMob'), tr('حوّل لـ RIP وارفع الوصل', 'Transfer to RIP & upload receipt'), 'linear-gradient(135deg,#1D4ED8,#1E3A8A)'],
+    ['voucher', Ticket, tr('كارطة شحن', 'Voucher'), tr('كود من نقاط البيع', 'Code from retail points'), 'linear-gradient(135deg,#E8650A,#7B0E13)'],
+  ]
+  return (
+    <section className="sec alt" id="pay">
+      <div className="wrap">
+        <div className="sec-head reveal"><span className="eyebrow"><Wallet size={15} />{tr('الخلاص', 'Payments')}</span><h2>{tr('خلّص كيما تحب', 'Pay your way')}</h2><p>{tr('كاش للشيفور، ولا من البورتفاي اللي تشحنو بطرق الدفع الجزائرية المعروفة، ولا بالنقاط.', 'Cash, wallet topped up with Algerian payment methods, or points.')}</p></div>
+        <div className="pay-grid reveal">
+          {M.map(([k, I, t, d, bg]) => (
+            <div key={k} className="pay-card">
+              <div className="pc-art" style={{ background: bg }}><I size={30} /><span className="chip-g" /></div>
+              <b>{t}</b><small>{d}</small>
+            </div>
+          ))}
+          <div className="pay-card wide">
+            <div className="flex" style={{ gap: 14 }}><span className="pc-ico"><Banknote size={24} /></span><span><b>{tr('كاش', 'Cash')}</b><small>{tr('خلّص الشيفور مباشرة', 'Pay the driver directly')}</small></span></div>
+            <div className="flex" style={{ gap: 14 }}><span className="pc-ico" style={{ background: 'var(--grad)', color: '#fff' }}><Gift size={24} /></span><span><b>{tr('بالنقاط', 'Points')}</b><small>{tr('كورسة بلاش كاملة', 'A completely free ride')}</small></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ===== الأمان =====
+function Safety() {
+  const S = [
+    [KeyRound, tr('كود PIN للكورسة', 'Trip PIN'), tr('الشيفور ما يبداش حتى يدخّل الكود اللي عندك — تأكد بلي راكب مع الصحيح.', 'Driver must enter your PIN to start.')],
+    [Share2, tr('تتبّع مباشر للعايلة', 'Live tracking for family'), tr('بارتاجي الكورسة ولا ابعث رابط التتبّع في واتساب.', 'Share your trip or a live link on WhatsApp.')],
+    [ShieldCheck, tr('شيفورات موثّقين', 'Verified drivers'), tr('البيرمي، البطاقة والكارط قريز تتحقق قبل التفعيل.', 'License, ID and registration checked.')],
+    [Users, tr('شيفورة مرا', 'Women drivers'), tr('خيار طلب شيفورة مرا للنساء.', 'Request a female driver.')],
+    [Headphones, tr('زر طوارئ', 'SOS button'), tr('عيّط للشرطة 17 ولا خبّر فريق وصلني بضغطة.', 'Call 17 or alert our team in one tap.')],
+    [Star, tr('تقييم متبادل', 'Two-way ratings'), tr('الزبون والشيفور يقيّمو بعضاهم بعد كل كورسة.', 'Riders and drivers rate each other.')],
+  ]
+  return (
+    <section className="sec dark" id="safety">
+      <div className="wrap">
+        <div className="sec-head reveal"><span className="eyebrow"><ShieldCheck size={15} />{tr('الأمان أولًا', 'Safety first')}</span><h2>{tr('تركب وانت مرتاح', 'Ride with peace of mind')}</h2><p>{tr('كل كورسة فيها أدوات أمان، ليك ولعايلتك.', 'Safety tools on every ride, for you and your family.')}</p></div>
+        <div className="safe-grid reveal">
+          {S.map(([I, t, d], i) => <div key={i} className="safe"><span><I size={24} /></span><b>{t}</b><small>{d}</small></div>)}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ===== الولايات =====
+function Wilayas() {
+  return (
+    <section className="sec" id="cities">
+      <div className="wrap">
+        <div className="sec-head reveal"><span className="eyebrow"><MapPin size={15} />{tr('وين نخدمو', 'Where we operate')}</span><h2>{tr(`${CITIES.length} ولاية وراهي تزيد`, `${CITIES.length} wilayas and growing`)}</h2><p>{tr('بدينا من سيدي بلعباس ورانا نوصلو لكل ولايات الوطن.', 'Started in Sidi Bel Abbès, expanding nationwide.')}</p></div>
+        <div className="city-grid reveal">
+          {CITIES.map((c, i) => <div key={c.id} className="city-chip" style={{ animationDelay: i * 60 + 'ms' }}><span className="dot" />{isAr ? c.ar : c.en}<small>{tr('متوفر', 'Live')}</small></div>)}
         </div>
       </div>
     </section>

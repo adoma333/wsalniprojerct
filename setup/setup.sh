@@ -3,11 +3,11 @@
 #  وصلني — أمر الإعداد الواحد (يُشغَّل على السيرفر مرة واحدة)
 #  bash <(curl -fsSL https://raw.githubusercontent.com/adoma333/wsalniprojerct/HEAD/setup/setup.sh)
 #
-#  السيرفر لا يشغّل أي خدمة؛ هذا الأمر فقط:
+#  هذا الأمر الواحد:
 #   1) يجلب معرّف المحادثة (Chat ID) لبوت تلجرام تلقائيًا
 #   2) ينشئ/يجلب توكن surge.sh ويختار رابط الموقع ولوحة التحكم
 #   3) ينشئ مفتاح توقيع دائم لملفات APK
-#   4) (اختياري) يربط Firebase لتتصل كل الأجهزة ببعض
+#   4) يثبّت خادم قاعدة البيانات (SQLite) مع HTTPS تلقائي — يربط كل الهواتف ولوحة التحكم لحظيًا
 #   5) يحفظ كل شيء كأسرار في GitHub ويشغّل البناء — والنتيجة تصلك على تلجرام
 #  إعادة تشغيله آمنة: يتذكر القيم السابقة ويسأل فقط عن الناقص.
 # =====================================================================
@@ -166,36 +166,114 @@ if [ ! -f "$KS" ]; then
   ok "أُنشئ مفتاح دائم (نسخة احتياطية في $KS وعلى تلجرام)"
 else ok "المفتاح موجود مسبقًا"; fi
 
-# ---------- 5) Firebase (اختياري) ----------
-echo; echo -e "${B}【5/5】 Firebase — قاعدة بيانات مباشرة تربط كل الأجهزة (اختياري)${N}"
-echo -e "${D}بدونه: كل شيء يعمل بوضع العرض (البيانات داخل كل جهاز + أسطول محاكاة)."
-echo -e "معه: الزبون والسائق ولوحة التحكم على أجهزة مختلفة يرون نفس البيانات لحظيًا.${N}"
-if [ -z "${FB_API_KEY:-}" ]; then
-  YN=$(ask "ربط Firebase الآن؟ [y/N]:")
-  if [[ "$YN" =~ ^[yYنن] ]]; then
-    cat <<EOF
-${D}  1. https://console.firebase.google.com ← Add project (مجاني)
-  2. Build ← Firestore Database ← Create database (production)
-  3. Build ← Authentication ← Get started ← فعّل Email/Password و Anonymous
-  4. ⚙ Project settings ← Your apps ← Web (</>) ← انسخ firebaseConfig كاملًا${N}
-EOF
-    echo -e "${B}الصق firebaseConfig ثم اضغط Enter مرتين:${N}"
-    CFG=""; while IFS= read -r L </dev/tty; do [ -z "$L" ] && [ -n "$CFG" ] && break; CFG+="$L"$'\n'; done
-    g() { echo "$CFG" | grep -o "$1[\"']\?[[:space:]]*:[[:space:]]*[\"'][^\"']*" | head -1 | sed -E "s/.*[\"']([^\"']*)$/\1/"; }
-    FB_API_KEY=$(g apiKey); FB_PROJECT=$(g projectId)
-    if [ -n "$FB_API_KEY" ] && [ -n "$FB_PROJECT" ]; then
-      save FB_API_KEY "$FB_API_KEY"; save FB_PROJECT "$FB_PROJECT"
-      save FB_AUTH_DOMAIN "$(g authDomain)"; save FB_BUCKET "$(g storageBucket)"; save FB_SENDER "$(g messagingSenderId)"; save FB_APP_ID "$(g appId)"
-      ok "Firebase: $FB_PROJECT"
-      YN2=$(ask "نشر قواعد الأمان تلقائيًا مع كل بناء؟ (يتطلب تسجيل دخول Google) [Y/n]:")
-      if [[ ! "$YN2" =~ ^[nN]$ ]]; then
-        ensure_node
-        FT=$(npx --yes firebase-tools@13 login:ci --no-localhost </dev/tty | tee /dev/tty | grep -oE '1//[A-Za-z0-9_-]+' | tail -1)
-        [ -n "$FT" ] && save FB_TOKEN "$FT" && ok "توكن Firebase محفوظ" || warn "تخطّي — انسخ firebase/firestore.rules يدويًا إلى Firestore ← Rules"
-      fi
-    else warn "تعذر قراءة الإعدادات، يمكنك إعادة تشغيل الأمر لاحقًا"; fi
-  else say "تخطّي Firebase (يمكنك إعادة تشغيل الأمر لاحقًا لإضافته)"; fi
-else ok "Firebase: $FB_PROJECT"; fi
+# ---------- 5) خادم قاعدة البيانات (SQLite) ----------
+# يربط كل الهواتف ولوحة التحكم ببعض لحظيًا. خدمة خفيفة جدًا (Node.js + SQLite) تشتغل وحدها وتعاود تشتغل بعد إعادة التشغيل.
+echo; echo -e "${B}【5/5】 خادم قاعدة البيانات — يربط كل الهواتف ولوحة التحكم${N}"
+SRV=/opt/wasalni-server; DATA=/var/lib/wasalni; NODE_V=22.12.0
+mkdir -p "$SRV" "$DATA"
+if [ ! -x "$SRV/node/bin/node" ] || ! "$SRV/node/bin/node" -v 2>/dev/null | grep -q "v$NODE_V"; then
+  say "تنزيل Node.js $NODE_V…"
+  rm -rf "$SRV/node"; curl -fsSL "https://nodejs.org/dist/v${NODE_V}/node-v${NODE_V}-linux-${NA}.tar.gz" | tar xz -C "$SRV" && mv "$SRV/node-v${NODE_V}-linux-${NA}" "$SRV/node" || die "تعذر تنزيل Node.js"
+fi
+say "تنزيل كود الخادم من المستودع…"
+"$GH" api "repos/$REPO/contents/server/server.mjs?ref=$BRANCH" -H "Accept: application/vnd.github.raw" > "$SRV/server.mjs.new" 2>/dev/null && [ -s "$SRV/server.mjs.new" ] && mv "$SRV/server.mjs.new" "$SRV/server.mjs" || die "تعذر تنزيل server/server.mjs"
+cat > "$SRV/env" <<EOV
+PORT=8787
+DB_PATH=$DATA/wasalni.db
+ADMIN_EMAIL=contwais@gmail.com
+TELEGRAM_BOT_TOKEN=$TG_TOKEN
+TELEGRAM_CHAT_ID=$TG_CHAT
+EOV
+chmod 600 "$SRV/env"
+HAS_SYSTEMD=0; need systemctl && [ -d /run/systemd/system ] && HAS_SYSTEMD=1
+unit() { # unit NAME DESCRIPTION EXEC
+  cat > "/etc/systemd/system/$1.service" <<EOU
+[Unit]
+Description=$2
+After=network-online.target
+Wants=network-online.target
+[Service]
+EnvironmentFile=-$SRV/env
+ExecStart=$3
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+[Install]
+WantedBy=multi-user.target
+EOU
+  systemctl daemon-reload; systemctl enable "$1" >/dev/null 2>&1; systemctl restart "$1"
+}
+run_bg() { # run_bg NAME CMD (بدون systemd)
+  pkill -x "$1" 2>/dev/null; (exec -a "$1" bash -c "$2" >>"$DATA/$1.log" 2>&1 &)
+  (crontab -l 2>/dev/null | grep -v "#$1"; echo "@reboot bash -c '$2' >>$DATA/$1.log 2>&1 #$1") | crontab - 2>/dev/null || true
+}
+NODE_CMD="$SRV/node/bin/node --experimental-sqlite --no-warnings $SRV/server.mjs"
+if [ "$HAS_SYSTEMD" = 1 ]; then unit wasalni-server "Wasalni API (SQLite)" "$NODE_CMD"
+else set -a; . "$SRV/env"; set +a; run_bg wasalni-server "set -a; . $SRV/env; set +a; exec $NODE_CMD"; fi
+for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8787/health >/dev/null 2>&1 && break; sleep 1; done
+curl -fsS http://127.0.0.1:8787/health >/dev/null 2>&1 && ok "خادم قاعدة البيانات يخدم (محليًا)" || die "الخادم ما خدمش — شوف: journalctl -u wasalni-server -n 50"
+
+# HTTPS: التطبيقات على https فلازم الخادم يكون https.
+# الطريقة 1: Caddy + نطاق مجاني <IP>.sslip.io بشهادة Let's Encrypt (يحتاج المنفذين 80 و 443)
+# الطريقة 2 (احتياطية): نفق Cloudflare مجاني بلا منافذ
+PUB_IP=$(curl -fsS4 https://api.ipify.org 2>/dev/null || curl -fsS4 https://ifconfig.me 2>/dev/null)
+API_DOMAIN="${WASALNI_API_DOMAIN:-${PUB_IP//./-}.sslip.io}"
+port_busy() { (ss -ltnH 2>/dev/null || netstat -ltn 2>/dev/null) | awk '{print $4}' | grep -qE "[:.]$1\$"; }
+NEW_API=""
+if [ -n "$PUB_IP" ] && { pgrep -x caddy >/dev/null || { ! port_busy 80 && ! port_busy 443; }; }; then
+  if [ ! -x /usr/local/bin/caddy ]; then
+    say "تنزيل Caddy (HTTPS تلقائي)…"
+    CV=2.8.4; curl -fsSL "https://github.com/caddyserver/caddy/releases/download/v${CV}/caddy_${CV}_linux_${A}.tar.gz" | tar xz -C /tmp caddy && mv /tmp/caddy /usr/local/bin/caddy && chmod +x /usr/local/bin/caddy || warn "تعذر تنزيل Caddy"
+  fi
+  if [ -x /usr/local/bin/caddy ]; then
+    mkdir -p /etc/caddy "$DATA/caddy"
+    cat > /etc/caddy/Caddyfile <<EOC
+{
+	email contwais@gmail.com
+	storage file_system $DATA/caddy
+}
+$API_DOMAIN {
+	reverse_proxy 127.0.0.1:8787 {
+		flush_interval -1
+	}
+}
+EOC
+    need ufw && ufw status 2>/dev/null | grep -q active && { ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null; }
+    if [ "$HAS_SYSTEMD" = 1 ]; then unit wasalni-caddy "Wasalni HTTPS (Caddy)" "/usr/local/bin/caddy run --config /etc/caddy/Caddyfile --adapter caddyfile"
+    else run_bg wasalni-caddy "exec /usr/local/bin/caddy run --config /etc/caddy/Caddyfile --adapter caddyfile"; fi
+    say "طلب شهادة HTTPS لـ $API_DOMAIN …"
+    for i in $(seq 1 45); do curl -fsS "https://$API_DOMAIN/health" >/dev/null 2>&1 && { NEW_API="https://$API_DOMAIN"; break; }; sleep 2; done
+    [ -n "$NEW_API" ] && ok "HTTPS جاهز: $NEW_API" || warn "الشهادة ما تخرجتش (المنافذ 80/443 مسدودة؟) — نجرّب نفق Cloudflare"
+  fi
+fi
+if [ -z "$NEW_API" ]; then
+  [ "$HAS_SYSTEMD" = 1 ] && systemctl disable --now wasalni-caddy >/dev/null 2>&1
+  if [ ! -x "$SRV/cloudflared" ]; then
+    say "تنزيل نفق Cloudflare…"
+    curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${A}" -o "$SRV/cloudflared" && chmod +x "$SRV/cloudflared" || die "تعذر تنزيل cloudflared"
+  fi
+  : > "$DATA/tunnel.log"
+  TUN="$SRV/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8787 --logfile $DATA/tunnel.log"
+  if [ "$HAS_SYSTEMD" = 1 ]; then unit wasalni-tunnel "Wasalni tunnel" "$TUN"; else run_bg wasalni-tunnel "exec $TUN"; fi
+  for i in $(seq 1 40); do U=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$DATA/tunnel.log" | tail -1); [ -n "$U" ] && curl -fsS "$U/health" >/dev/null 2>&1 && { NEW_API="$U"; break; }; sleep 2; done
+  [ -n "$NEW_API" ] || die "تعذر تشغيل النفق — شوف $DATA/tunnel.log"
+  ok "النفق جاهز: $NEW_API"
+  # رابط النفق يتبدّل كي يعاود السيرفر يشتغل: مراقب صغير يحدّث التطبيقات وحدو
+  cat > "$SRV/url-watch.sh" <<EOW
+#!/usr/bin/env bash
+. $CONF
+while sleep 60; do
+  U=\$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' $DATA/tunnel.log | tail -1)
+  [ -n "\$U" ] && [ "\$U" != "\$API_URL" ] && curl -fsS "\$U/health" >/dev/null 2>&1 || continue
+  printf '%s' "\$U" | GH_TOKEN="\$GH_TOKEN" $GH secret set API_URL -R $REPO >/dev/null 2>&1 && GH_TOKEN="\$GH_TOKEN" $GH workflow run build.yml -R $REPO --ref $BRANCH >/dev/null 2>&1 && {
+    sed -i "/^API_URL=/d" $CONF; echo "API_URL=\$U" >> $CONF; API_URL="\$U"
+  }
+done
+EOW
+  chmod +x "$SRV/url-watch.sh"
+  if [ "$HAS_SYSTEMD" = 1 ]; then unit wasalni-urlwatch "Wasalni tunnel URL watcher" "$SRV/url-watch.sh"; else run_bg wasalni-urlwatch "exec $SRV/url-watch.sh"; fi
+fi
+save API_URL "$NEW_API"
 
 # ---------- حفظ الأسرار وتشغيل البناء ----------
 echo; say "حفظ الأسرار في GitHub…"
@@ -206,14 +284,10 @@ secret SURGE_LOGIN "${SURGE_LOGIN:-}"
 secret SURGE_DOMAIN "$SURGE_DOMAIN"
 secret ANDROID_KEYSTORE_B64 "$(base64 -w0 "$KS" 2>/dev/null || base64 "$KS" | tr -d '\n')"
 secret ANDROID_KEYSTORE_PASSWORD "$KS_PASS"
-if [ -n "${FB_API_KEY:-}" ]; then
-  secret FIREBASE_API_KEY "$FB_API_KEY"; secret FIREBASE_PROJECT_ID "$FB_PROJECT"; secret FIREBASE_AUTH_DOMAIN "${FB_AUTH_DOMAIN:-$FB_PROJECT.firebaseapp.com}"
-  secret FIREBASE_STORAGE_BUCKET "${FB_BUCKET:-}"; secret FIREBASE_SENDER_ID "${FB_SENDER:-}"; secret FIREBASE_APP_ID "${FB_APP_ID:-}"
-  [ -n "${FB_TOKEN:-}" ] && secret FIREBASE_TOKEN "$FB_TOKEN"
-fi
+secret API_URL "$API_URL"
 
 HAVE=$("$GH" secret list -R "$REPO" 2>/dev/null)
-for k in SURGE_TOKEN TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do echo "$HAVE" | grep -q "^$k" || die "لم يُحفظ $k في GitHub — تحقق من صلاحية Secrets في التوكن ثم أعد تشغيل الأمر"; done
+for k in SURGE_TOKEN TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID API_URL; do echo "$HAVE" | grep -q "^$k" || die "لم يُحفظ $k في GitHub — تحقق من صلاحية Secrets في التوكن ثم أعد تشغيل الأمر"; done
 ok "تم التحقق من حفظ الأسرار في GitHub"
 
 say "تشغيل البناء على خوادم GitHub…"
@@ -226,7 +300,8 @@ tg sendMessage -d chat_id="$TG_CHAT" -d parse_mode=HTML --data-urlencode text="�
 🌐 ${U}
 🛠 لوحة التحكم: ${U}/admin/
 📧 المدير: contwais@gmail.com
-🔑 كلمة السر تُطلب عند أول فتح للوحة وتُحفظ للأبد" >/dev/null 2>&1 || true
+🔑 كلمة السر تُطلب عند أول فتح للوحة وتُحفظ للأبد
+🗄 قاعدة البيانات: ${API_URL} (نسخة احتياطية يومية تصلك هنا)" >/dev/null 2>&1 || true
 
 cat <<EOF
 
@@ -236,6 +311,7 @@ ${G}${B}════════════ تم ══════════
   🧑‍✈️ تطبيق السائق:  $U/driver/
   🛠 لوحة التحكم:   ${B}$U/admin/${N}   (contwais@gmail.com — اختر كلمة السر عند أول فتح)
   ⬇️ APK:           $U/downloads/wasalni.apk • $U/downloads/wasalni-captain.apk
+  🗄 قاعدة البيانات: ${B}$API_URL${N}  (SQLite في $DATA — نسخة احتياطية يومية لتلجرام)
   📨 كل بناء جديد يُرسل تلقائيًا إلى تلجرام @$BOT
   ${D}الإعدادات محفوظة في $CONF — أعد تشغيل الأمر نفسه لأي تعديل.${N}
 

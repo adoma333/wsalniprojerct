@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   CheckCircle2, XCircle, ThumbsDown, User, Mail, Shuffle, Car, FileText, Languages, Settings as SetIco, LogOut, UserX, Camera, Copy, Share2, Gift,
   Users, CalendarClock, ArrowDownLeft, ArrowUpRight, TrendingUp, Clock, Wallet as WalletIco, MapPin, Banknote, Info,
+  Plus, AlertTriangle, Landmark, Smartphone, CreditCard, Hash, ShieldCheck,
 } from 'lucide-react'
 import { Page, Empty, Row, Sheet, toast, Avatar, Stars, useNav } from '@/ui/kit.jsx'
 import Scanner from '@/ui/Scanner.jsx'
@@ -11,7 +12,7 @@ import { StatusBadge, RouteSummary, Plate, ChatPage } from '@/ui/ride-ui.jsx'
 import { tr, money, dateTime, km, mins, copy, shareLink, compressImage, isAr, LANG } from '@/core/util.js'
 import { CITIES, SITE_URL } from '@/core/config.js'
 import { driverNet } from '@/core/pricing.js'
-import { watchDriverRides, updateDriver, deleteAccount, store, updateRide } from '@/core/api.js'
+import { watchDriverRides, updateDriver, deleteAccount, store, updateRide, watchTx, watchMyWithdrawals, watchMyTopupsAs, requestWithdraw, WITHDRAW_METHODS } from '@/core/api.js'
 import { DOC_LIST } from './App.jsx'
 import { rating } from './Home.jsx'
 export { Notifications, Support, Settings } from '@/ui/common-pages.jsx'
@@ -161,33 +162,116 @@ export function Earnings() {
 }
 
 export function Wallet() {
-  const { driver, settings } = useApp()
+  const { uid, driver, settings } = useApp()
+  const nav = useNav()
   const rides = useMyRides() || []
-  const done = rides.filter((r) => r.status === 'completed').slice(0, 40)
+  const [txs, setTxs] = useState([])
+  const [wds, setWds] = useState([])
+  const [tops, setTops] = useState([])
+  useEffect(() => watchTx(uid, setTxs, 'driver'), [uid])
+  useEffect(() => watchMyWithdrawals(uid, setWds), [uid])
+  useEffect(() => watchMyTopupsAs(uid, (t) => setTops(t.filter((x) => x.status !== 'paid'))), [uid])
+  const dw = settings.driverWallet || {}
   const bal = driver.wallet || 0
+  const low = bal < (dw.minBalance ?? -1000)
+  // الحركات: الكورسات + الشحن + السحب + المكافآت، مرتبة بالوقت
+  const items = useMemo(() => {
+    const out = rides.filter((r) => r.status === 'completed').slice(0, 60).map((r) => {
+      const { net, commission } = driverNet(r.fare?.total || 0, settings.pricing)
+      const cash = r.payment === 'cash'
+      return { at: r.completedAt || r.createdAt, title: cash ? tr('عمولة كورسة كاش', 'Cash trip commission') : tr('مدخول كورسة مخلّصة', 'Prepaid trip earnings'), sub: r.riderName, amount: cash ? -(r.commission ?? commission) : r.driverNet ?? net, kind: cash ? 'out' : 'in' }
+    })
+    for (const t of txs) out.push({ at: t.at, title: t.title, sub: { topup: tr('شحن', 'Top-up'), withdraw: tr('سحب', 'Withdrawal'), bonus: tr('مكافأة', 'Bonus'), refund: tr('إرجاع', 'Refund') }[t.kind] || '', amount: t.amount, kind: t.amount >= 0 ? 'in' : 'out' })
+    return out.sort((a, b) => b.at - a.at).slice(0, 80)
+  }, [rides, txs])
+  const pendingW = wds.filter((w) => w.status === 'pending')
   return (
     <Page title={tr('البورتفاي', 'Wallet')}>
       <div className="wallet-card rise">
         <div className="small" style={{ opacity: 0.75, position: 'relative', zIndex: 1 }}>{tr('رصيد البورتفاي', 'Wallet balance')}</div>
         <div className="wbig num" style={{ position: 'relative', zIndex: 1, color: bal < 0 ? '#ffb4a8' : '#fff' }}>{money(bal)}</div>
-        <div className="small" style={{ position: 'relative', zIndex: 1, opacity: 0.85 }}>{bal < 0 ? tr('عمولات لازم تخلصها للتطبيق من الكورسات كاش', 'Commission owed from cash trips') : tr('الدراهم تاعك من الكورسات المخلّصة إلكترونيًا', 'Owed to you from prepaid trips')}</div>
+        <div className="small" style={{ position: 'relative', zIndex: 1, opacity: 0.85 }}>{bal < 0 ? tr('عمولات لازم تخلصها للتطبيق من الكورسات كاش', 'Commission owed from cash trips') : tr('الدراهم تاعك من الكورسات المخلّصة والمكافآت', 'Your earnings from prepaid trips & bonuses')}</div>
+        <div className="flex" style={{ position: 'relative', zIndex: 1, gap: 10, marginTop: 14 }}>
+          {dw.topup !== false && <button className="btn grow" style={{ background: '#fff', color: 'var(--ink)' }} onClick={() => nav.push('topup')}><Plus size={18} />{tr('اشحن', 'Top up')}</button>}
+          {dw.withdraw !== false && <button className="btn grow" style={{ background: 'rgba(255,255,255,.16)', color: '#fff' }} disabled={bal < (dw.withdrawMin || 0)} onClick={() => nav.push('withdraw')}><ArrowUpRight size={18} />{tr('اسحب', 'Withdraw')}</button>}
+        </div>
       </div>
-      <div className="card pad mt small flex" style={{ background: 'var(--warning-bg)', border: 0 }}><Banknote size={18} />{tr('باش تسوّي الرصيد تواصل مع الدعم ولا البيرو تاع وصلني في ولايتك.', 'Contact support to settle your balance.')}</div>
+      {low && <div className="card pad mt small flex" style={{ background: 'var(--danger-bg)', border: 0 }}><AlertTriangle size={20} color="var(--danger)" /><span><b>{tr('الرصيد تحت الحد المسموح', 'Balance below the limit')}</b><br />{tr(`ما تقدرش تتكونيكتا حتى تشحن البورتفاي (الحد: ${money(dw.minBalance)})`, `Top up to go online (limit ${money(dw.minBalance)})`)}</span></div>}
+      {!low && bal >= 0 && bal < (dw.withdrawMin || 0) && <div className="card pad mt tiny muted flex" style={{ boxShadow: 'none', background: 'var(--card-2)' }}><Info size={16} />{tr(`أقل مبلغ للسحب ${money(dw.withdrawMin)}`, `Minimum withdrawal ${money(dw.withdrawMin)}`)}</div>}
+      {(pendingW.length > 0 || tops.length > 0) && (
+        <>
+          <div className="section-title">{tr('في الانتظار', 'Pending')}</div>
+          <div className="list">
+            {pendingW.map((w) => <div key={w.id} className="tx"><span className="txi" style={{ background: 'var(--warning-bg)', color: '#a16207' }}><Clock size={18} /></span><div className="txb"><b>{tr('طلب سحب', 'Withdrawal')} • {WITHDRAW_METHODS[w.method]}</b><small>{dateTime(w.at)} • {tr('يتحوّل خلال 24–48 ساعة', 'Processed within 24–48h')}</small></div><span className="amt num">-{money(w.amount)}</span></div>)}
+            {tops.map((t) => <div key={t.id} className="tx"><span className="txi" style={{ background: t.status === 'rejected' ? 'var(--danger-bg)' : 'var(--warning-bg)', color: t.status === 'rejected' ? 'var(--danger)' : '#a16207' }}><Clock size={18} /></span><div className="txb"><b>{tr('شحن', 'Top-up')} • {t.status === 'rejected' ? tr('مرفوض', 'Rejected') : tr('في المراجعة', 'Under review')}</b><small>{dateTime(t.at)}{t.note ? ' • ' + t.note : ''}</small></div><span className="amt num">{money(t.amount)}</span></div>)}
+          </div>
+        </>
+      )}
       <div className="section-title">{tr('الحركات', 'Transactions')}</div>
       <div className="list">
-        {done.length === 0 && <div className="empty" style={{ padding: 24 }}><b>{tr('ما كاين حتى حركة', 'No transactions')}</b></div>}
-        {done.map((r) => {
-          const { net, commission } = driverNet(r.fare?.total || 0, settings.pricing)
-          const cash = r.payment === 'cash'
-          return (
-            <div key={r.id} className="tx">
-              <span className="txi" style={{ background: cash ? 'var(--danger-bg)' : 'var(--success-bg)', color: cash ? 'var(--danger)' : 'var(--success)' }}>{cash ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}</span>
-              <div className="txb"><b>{cash ? tr('عمولة كورسة كاش', 'Cash trip commission') : tr('مدخول كورسة مخلّصة', 'Prepaid trip earnings')}</b><small>{dateTime(r.completedAt || r.createdAt)} • {r.riderName}</small></div>
-              <span className={`amt num ${cash ? '' : 'pos'}`}>{cash ? '-' : '+'}{money(cash ? r.commission ?? commission : r.driverNet ?? net)}</span>
-            </div>
-          )
-        })}
+        {items.length === 0 && <div className="empty" style={{ padding: 24 }}><b>{tr('ما كاين حتى حركة', 'No transactions')}</b></div>}
+        {items.map((x, i) => (
+          <div key={i} className="tx">
+            <span className="txi" style={{ background: x.kind === 'out' ? 'var(--danger-bg)' : 'var(--success-bg)', color: x.kind === 'out' ? 'var(--danger)' : 'var(--success)' }}>{x.kind === 'out' ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}</span>
+            <div className="txb"><b>{x.title}</b><small>{dateTime(x.at)}{x.sub ? ' • ' + x.sub : ''}</small></div>
+            <span className={`amt num ${x.amount >= 0 ? 'pos' : ''}`}>{x.amount >= 0 ? '+' : '-'}{money(Math.abs(x.amount))}</span>
+          </div>
+        ))}
       </div>
+    </Page>
+  )
+}
+
+// ===== سحب الأرباح =====
+export function Withdraw() {
+  const { uid, driver, settings } = useApp()
+  const nav = useNav()
+  const dw = settings.driverWallet || {}
+  const bal = Math.floor(driver.wallet || 0)
+  const [f, setF] = useState(() => ({ amount: bal, method: driver.payout?.method || 'ccp', account: driver.payout?.account || '', name: driver.payout?.name || driver.name || '' }))
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(null)
+  const okAcc = f.method === 'ccp' ? /^\d{6,12}\s*\d{2}$/.test(f.account.replace(/[^\d ]/g, '').trim()) || f.account.replace(/\D/g, '').length >= 8 : f.account.replace(/\D/g, '').length >= 18
+  const ok = f.amount >= (dw.withdrawMin || 0) && f.amount <= bal && okAcc && f.name.trim().length >= 3
+  const submit = async () => {
+    setBusy(true)
+    try {
+      await requestWithdraw(uid, f, dw)
+      updateDriver(uid, { payout: { method: f.method, account: f.account, name: f.name } }).catch(() => {})
+      setDone(f.amount)
+    } catch (e) { toast(e.message, 'error') }
+    setBusy(false)
+  }
+  if (done) return (
+    <Page title={tr('سحب الأرباح', 'Withdraw')} foot={<button className="btn btn-dark btn-block btn-lg" onClick={() => nav.back()}>{tr('رجوع للبورتفاي', 'Back to wallet')}</button>}>
+      <div className="center col rise" style={{ paddingTop: 30, alignItems: 'center' }}>
+        <div className="pop" style={{ width: 96, height: 96, borderRadius: 48, background: 'var(--success-bg)', color: 'var(--success)', display: 'grid', placeItems: 'center' }}><CheckCircle2 size={52} /></div>
+        <h2 style={{ margin: '14px 0 4px' }}>{tr('الطلب تبعث ✅', 'Request sent ✅')}</h2>
+        <b className="num" style={{ fontSize: 30 }}>{money(done)}</b>
+        <div className="small muted" style={{ maxWidth: 300 }}>{tr('المبلغ تحجز من رصيدك، ويتحوّل لحسابك خلال 24–48 ساعة. إذا ترفض الطلب يرجع للبورتفاي وحدو.', 'Funds are held and transferred within 24–48h. Refunded automatically if rejected.')}</div>
+      </div>
+    </Page>
+  )
+  return (
+    <Page title={tr('سحب الأرباح', 'Withdraw')} foot={<button className="btn btn-primary btn-block btn-lg" disabled={!ok || busy} onClick={submit}>{busy ? <span className="spinner" /> : <>{tr('اسحب', 'Withdraw')} <span className="num">{money(f.amount || 0)}</span></>}</button>}>
+      <div className="topup-bal"><small>{tr('متاح للسحب', 'Available')}</small><b className="num">{money(bal)}</b></div>
+      <div className="field mt"><label>{tr('المبلغ', 'Amount')}</label>
+        <div className="input-wrap"><Banknote size={18} /><input className="input num" inputMode="numeric" value={f.amount || ''} onChange={(e) => setF({ ...f, amount: Math.min(bal, +e.target.value.replace(/\D/g, '') || 0) })} /><span className="suffix muted small" style={{ padding: '0 12px' }}>{tr('دج', 'DA')}</span></div>
+        <div className="flex" style={{ gap: 6, marginTop: 8 }}>{[0.25, 0.5, 1].map((x) => <button key={x} className="chip" onClick={() => setF({ ...f, amount: Math.floor(bal * x) })}>{x === 1 ? tr('الكل', 'All') : `${x * 100}%`}</button>)}</div>
+      </div>
+      <div className="section-title">{tr('وين نحوّلولك؟', 'Payout method')}</div>
+      <div className="col" style={{ gap: 8 }}>
+        {Object.entries(WITHDRAW_METHODS).map(([k, l]) => (
+          <button key={k} className={`method ${f.method === k ? 'active' : ''}`} onClick={() => setF({ ...f, method: k })}>
+            <span className="m-ico" style={{ background: k === 'ccp' ? '#FEF3C7' : k === 'baridimob' ? '#DBEAFE' : '#E0F2F1', color: k === 'ccp' ? '#B8860B' : k === 'baridimob' ? '#1D4ED8' : '#0F766E' }}>{k === 'bank' ? <Landmark size={20} /> : k === 'baridimob' ? <Smartphone size={20} /> : <CreditCard size={20} />}</span>
+            <span className="grow" style={{ textAlign: 'start' }}><b>{l}</b></span>
+            <span className={`radio ${f.method === k ? 'on' : ''}`} />
+          </button>
+        ))}
+      </div>
+      <div className="field mt"><label>{f.method === 'ccp' ? tr('رقم CCP والمفتاح', 'CCP number + key') : tr('رقم RIP (20 رقم)', 'RIP (20 digits)')}</label><div className="input-wrap"><Hash size={18} /><input className="input num" dir="ltr" inputMode="numeric" value={f.account} onChange={(e) => setF({ ...f, account: e.target.value.slice(0, 26) })} placeholder={f.method === 'ccp' ? '0012345678 90' : '00799999 0012345678 90'} /></div></div>
+      <div className="field"><label>{tr('اسم صاحب الحساب', 'Account holder')}</label><div className="input-wrap"><User size={18} /><input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></div></div>
+      <div className="secure-note mt"><ShieldCheck size={16} />{tr('المعلومات تتحفظ للمرات الجاية، والمبلغ يتحجز حتى يتحوّل.', 'Saved for next time; funds held until transferred.')}</div>
     </Page>
   )
 }
