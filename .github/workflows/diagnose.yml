@@ -26,6 +26,18 @@ jobs:
           curl -s https://tiles.openfreemap.org/styles/liberty | python3 -c "import json,sys;d=json.load(sys.stdin);print('SPRITE',d.get('sprite'));print('GLYPHS',d.get('glyphs'));[print('POI',l['id'],json.dumps(l['layout'].get('icon-image'))[:300]) for l in d['layers'] if l.get('source-layer')=='poi'][:5];print('FONTS',set(f for l in d['layers'] for f in (l.get('layout',{}).get('text-font') or []) if isinstance(f,str)))"
           SP=$(curl -s https://tiles.openfreemap.org/styles/liberty | python3 -c "import json,sys;print(json.load(sys.stdin)['sprite'])")
           curl -s "$SP.json" | python3 -c "import json,sys;k=sorted(json.load(sys.stdin));print('ICONS',len(k),' '.join(k[:400]))"
+      - name: خادم قاعدة البيانات
+        env:
+          API: ${{ secrets.API_URL }}
+        run: |
+          if [ -z "$API" ]; then echo "API_URL فارغ"; exit 0; fi
+          echo "KIND: $(echo "$API" | grep -oE 'sslip\.io|trycloudflare\.com|[a-z]+\.[a-z]+$' | head -1)"
+          curl -sS -m 20 -o /tmp/h.txt -w "HEALTH http=%{http_code} time=%{time_total}s\n" "$API/health" || echo "HEALTH curl failed: $?"
+          head -c 300 /tmp/h.txt 2>/dev/null; echo
+          curl -sS -m 20 -o /tmp/a.txt -w "ANON http=%{http_code}\n" -X POST -H 'content-type: application/json' -d '{}' "$API/auth/anon" || echo "ANON curl failed: $?"
+          head -c 120 /tmp/a.txt 2>/dev/null | sed 's/"token":"[^"]*"/"token":"…"/'; echo
+          curl -sS -m 8 -N -o /tmp/s.txt "$API/db/stream" ; echo "STREAM exit=$? bytes=$(wc -c < /tmp/s.txt)"; head -c 200 /tmp/s.txt; echo
+          curl -sS -m 10 -vI "$API/health" 2>&1 | grep -iE "subject|issuer|expire|HTTP/|SSL|connect" | head -12
       - name: الفحص
         run: |
           d="${SURGE_DOMAIN_RAW:-wsalni.surge.sh}"
