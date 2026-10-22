@@ -328,3 +328,14 @@ export async function claimQuest(uid, day, idx, bonus, trips) {
   if (ok) await addTx(uid, { kind: 'bonus', amount: bonus, currency: 'wallet', title: `مكافأة تحدي ${trips} كورسات اليوم 🏆` }, 'driver').catch(() => {})
   return ok
 }
+
+// ===== النوافذ المنبثقة (إشعار بالشاشة كاملة عند فتح التطبيق) =====
+export const watchPopups = (cb) => store.watchList('popups', {}, (p) => cb(p.sort((a, b) => (b.priority || 0) - (a.priority || 0) || (b.createdAt || 0) - (a.createdAt || 0))))
+export const savePopup = async (id, data) => {
+  const r = id ? await store.set(`popups/${id}`, { ...data, updatedAt: Date.now() }, true) : await store.add('popups', { ...data, createdAt: Date.now(), updatedAt: Date.now() })
+  audit('popup', `${id ? 'تعديل' : 'إضافة'} نافذة: ${data.title || ''}`)
+  return r
+}
+export const deletePopup = (id) => store.remove(`popups/${id}`)
+export const popupStat = (id, kind) => store.set(`popupStats/${id}`, { [kind]: store.inc(1) }, true).catch(() => {})
+export const watchPopupStats = (cb) => store.watchList('popupStats', {}, cb)

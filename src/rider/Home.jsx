@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Menu, Crosshair, Layers, Search, Clock, Home as HomeIco, Briefcase, Plus, MapPin, Gift, Car, CalendarClock, Package, Wallet, Banknote,
   Ticket, MessageCircle, Phone, Share2, ShieldAlert, X, ChevronDown, Map as MapIco, Bell, Users, LifeBuoy, Settings, History, Star, Check,
-  Sparkles, Zap, StickyNote, Navigation, Info, GraduationCap, HandCoins, UserRound, KeyRound, Minus,
+  Sparkles, Zap, StickyNote, Navigation, Info, GraduationCap, Bus as BusIco, HandCoins, UserRound, KeyRound, Minus,
 } from 'lucide-react'
 import MapView from '@/map/MapView.jsx'
 import MapControls, { useMapPrefs } from '@/map/MapControls.jsx'
@@ -330,11 +330,16 @@ function IdlePanel({ user, wx, onSearch, onPlace, rides, nav, settings }) {
         </div>
       )}
       <div className="quick">
-        <button onClick={() => onSearch('dropoff')}><span className="qi"><ClassCar type="eco" w={52} /></span>{tr('كورسة', 'Ride')}</button>
-        {settings.features?.delivery !== false && <button onClick={() => onSearch('dropoff', { classId: 'moto' })}><span className="qi"><ClassCar type="moto" w={52} /></span>{tr('توصيل', 'Delivery')}</button>}
-        {settings.features?.schedule !== false && <button onClick={() => onSearch('dropoff', { schedule: true })}><span className="qi"><CalendarClock size={28} color="var(--brand)" /></span>{tr('برمج', 'Schedule')}</button>}
-        {settings.features?.reels !== false && <button onClick={() => nav.push('reels')}><span className="qi" style={{ background: 'var(--grad)', color: '#fff' }}><Gift size={28} /><span className="new num">+{settings.rewards.pointsPerReel}</span></span>{tr('اربح', 'Earn')}</button>}
+        {quickButtons(settings).map((k) => {
+          const Q = QUICK[k]
+          return Q ? <button key={k} onClick={() => Q.go({ onSearch, nav })}><span className="qi" style={Q.style}>{Q.icon(settings)}</span>{tr(...Q.label)}</button> : null
+        })}
       </div>
+      {settings.home?.banner?.on && settings.home.banner.title && (() => {
+        const bn = settings.home.banner
+        const open = () => { if (!bn.link) return; if (bn.link.startsWith('#')) nav.push(bn.link.slice(1)); else window.open(bn.link, '_blank') }
+        return <button className="home-banner" onClick={open} style={{ '--bc': bn.color || '#7B0E13', backgroundImage: bn.image ? `url(${bn.image})` : undefined }}><span><b>{bn.title}</b>{bn.sub && <small>{bn.sub}</small>}</span></button>
+      })()}
       {settings.zones?.[user.city]?.enabled === false && (
         <div className="card pad flex mt" style={{ background: 'var(--danger-bg)', boxShadow: 'none' }}><Info size={20} color="var(--danger)" /><span className="small"><b>{tr('الخدمة ماراهيش متوفرة دروك في ولايتك', 'Service is paused in your city')}</b><br />{tr('راح نرجعو قريب إن شاء الله', 'We will be back soon')}</span></div>
       )}
@@ -569,6 +574,21 @@ function CancelSheet({ open, onClose, ride }) {
       </div>
     </Sheet>
   )
+}
+
+// أزرار الواجهة الرئيسية الأربعة (يختارها المدير من لوحة التحكم)
+export const QUICK = {
+  ride: { label: ['كورسة', 'Ride'], icon: () => <ClassCar type="eco" w={52} />, go: ({ onSearch }) => onSearch('dropoff') },
+  delivery: { label: ['توصيل', 'Delivery'], feature: 'delivery', icon: () => <ClassCar type="moto" w={52} />, go: ({ onSearch }) => onSearch('dropoff', { classId: 'moto' }) },
+  bus: { label: ['الحافلة', 'Bus'], feature: 'bus', icon: () => <BusIco size={28} color="var(--brand)" />, go: ({ nav }) => nav.push('bus') },
+  reels: { label: ['اربح', 'Earn'], feature: 'reels', style: { background: 'var(--grad)', color: '#fff' }, icon: (st) => <><Gift size={28} /><span className="new num">+{st.rewards.pointsPerReel}</span></>, go: ({ nav }) => nav.push('reels') },
+  schedule: { label: ['برمج', 'Schedule'], feature: 'schedule', icon: () => <CalendarClock size={28} color="var(--brand)" />, go: ({ onSearch }) => onSearch('dropoff', { schedule: true }) },
+  student: { label: ['طالب', 'Student'], feature: 'students', icon: () => <GraduationCap size={28} color="#3538CD" />, go: ({ nav }) => nav.push('student') },
+  wallet: { label: ['البورتفاي', 'Wallet'], icon: () => <Wallet size={28} color="var(--info)" />, go: ({ nav }) => nav.push('wallet') },
+}
+export function quickButtons(st) {
+  const list = st.home?.quick?.length ? st.home.quick : ['ride', 'delivery', 'bus', 'reels']
+  return list.filter((k) => QUICK[k] && (!QUICK[k].feature || st.features?.[QUICK[k].feature] !== false)).slice(0, 4)
 }
 
 export const RIDE_PREFS = [['ac', '❄️', 'كليماتيزور', 'A/C'], ['quiet', '🤫', 'كورسة هادية', 'Quiet ride'], ['bag', '🧳', 'شنطة كبيرة', 'Big luggage'], ['child', '👶', 'كرسي طفل', 'Child seat']]

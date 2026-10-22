@@ -183,6 +183,7 @@ DB_PATH=$DATA/wasalni.db
 ADMIN_EMAIL=contwais@gmail.com
 TELEGRAM_BOT_TOKEN=$TG_TOKEN
 TELEGRAM_CHAT_ID=$TG_CHAT
+SITE_URL=https://$SURGE_DOMAIN
 EOV
 chmod 600 "$SRV/env"
 HAS_SYSTEMD=0; need systemctl && [ -d /run/systemd/system ] && HAS_SYSTEMD=1

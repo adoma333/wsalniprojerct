@@ -83,7 +83,10 @@ export const DEFAULT_SETTINGS = {
   // الميزات (تشغيل/إيقاف من الأدمن)
   driverWallet: { minBalance: -1000, withdrawMin: 1000, topup: true, withdraw: true },
   quests: { enabled: true, list: [{ trips: 5, bonus: 200 }, { trips: 10, bonus: 500 }, { trips: 20, bonus: 1200 }] },
-  features: { reels: true, delivery: true, schedule: true, offerPrice: true, womenDrivers: true, tripPin: true, rideForOther: true, students: true },
+  home: { quick: ['ride', 'delivery', 'bus', 'reels'], banner: { on: false, title: '', sub: '', image: '', link: '' } },
+  bus: { enabled: true, demo: true, simulate: true },
+  content: { terms: '', privacy: '', about: '' },
+  features: { bus: true, reels: true, delivery: true, schedule: true, offerPrice: true, womenDrivers: true, tripPin: true, rideForOther: true, students: true },
   // إعدادات كل ولاية: تفعيل، معامل سعر، زيادة مؤقتة
   zones: {},
   extraCities: [],

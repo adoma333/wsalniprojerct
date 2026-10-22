@@ -4,7 +4,8 @@
 import http from 'node:http'
 import { DatabaseSync } from 'node:sqlite'
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, existsSync, rmSync } from 'node:fs'
+import { mkdirSync, readFileSync, existsSync, rmSync, writeFileSync, renameSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
 
 const PORT = +(process.env.PORT || 8787)
@@ -13,7 +14,8 @@ const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'contwais@gmail.com').toLowerCas
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const TG_CHAT = process.env.TELEGRAM_CHAT_ID || ''
 const MAX_BODY = 12 * 1024 * 1024
-const VERSION = '1.0.0'
+const VERSION = '1.1.0'
+const SITE_URL = (process.env.SITE_URL || '').replace(/\/+$/, '')
 
 mkdirSync(dirname(DB_PATH), { recursive: true })
 const db = new DatabaseSync(DB_PATH)
@@ -126,7 +128,7 @@ function canRead(a, path, d, mode) {
   const s = path.split('/'), c = s[0], id = s[1]
   const signed = !!a.uid
   switch (c) {
-    case 'settings': case 'meta': case 'reels': case 'notifications': return true
+    case 'settings': case 'meta': case 'reels': case 'notifications': case 'busLines': case 'buses': case 'popups': case 'popupStats': return true
     case 'reelStats': return true
     case 'users':
       if (s.length === 2) return a.uid === id || (mode === 'refLookup' && signed)
@@ -250,6 +252,10 @@ function canWrite(a, w, batch) {
       return !!d && n(A.amount) > 0 && n(A.amount) <= n(readDoc(`drivers/${a.uid}`)?.data?.wallet)
     }
     case 'students': return me(id) && !del
+    // سائق الحافلة يبث موقعه في مستند باسمه فقط
+    case 'buses': return me(id) && (del || A.uid === a.uid)
+    // إحصائيات النوافذ: زيادة العدادات فقط
+    case 'popupStats': return !del && ch.every((k) => ['views', 'clicks', 'closes', 'updatedAt'].includes(k)) && ch.every((k) => k === 'updatedAt' || n(A[k]) - n(B?.[k]) === 1)
     case 'shares': return !del && A.uid === a.uid && (!B || B.uid === a.uid)
     default: return false
   }
@@ -474,6 +480,26 @@ const server = http.createServer(async (req, res) => {
 })
 server.keepAliveTimeout = 65000
 server.listen(PORT, '127.0.0.1', () => console.log(`wasalni server on 127.0.0.1:${PORT} (db: ${DB_PATH})`))
+
+// ===== تحديث ذاتي: الخادم يجيب آخر نسخة من الموقع المنشور (بلا ما تعاود تشغّل أمر الإعداد) =====
+const SELF = fileURLToPath(import.meta.url)
+const myHash = () => createHash('sha256').update(readFileSync(SELF)).digest('hex')
+async function selfUpdate() {
+  // التحديث الذاتي غير تحت systemd (يعاود يشغّل الخادم وحدو)، ولا بطلب صريح
+  if (!SITE_URL || !(process.env.INVOCATION_ID || process.env.WASALNI_SELF_UPDATE)) return
+  try {
+    const remote = (await (await fetch(`${SITE_URL}/srv/version.txt`, { cache: 'no-store' })).text()).trim()
+    if (!/^[a-f0-9]{64}$/.test(remote) || remote === myHash()) return
+    const code = await (await fetch(`${SITE_URL}/srv/server.mjs.txt`, { cache: 'no-store' })).text()
+    if (createHash('sha256').update(code).digest('hex') !== remote || !code.includes('wasalni server on')) return
+    writeFileSync(SELF + '.new', code); renameSync(SELF + '.new', SELF)
+    console.log('updated to', remote.slice(0, 8), '— restarting')
+    // systemd يعاود يشغّل الخادم بالنسخة الجديدة
+    setTimeout(() => process.exit(0), 500)
+  } catch (e) { console.error('self-update failed', e.message) }
+}
+setTimeout(selfUpdate, 20e3)
+setInterval(selfUpdate, 6 * 3600e3)
 
 // ===== نسخة احتياطية يومية إلى تلجرام =====
 async function backup() {

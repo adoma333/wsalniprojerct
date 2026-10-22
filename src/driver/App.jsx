@@ -10,9 +10,10 @@ import { watchDriver, registerDriver } from '@/core/api.js'
 import Home from './Home.jsx'
 import * as P from './pages.jsx'
 import TopUp from '@/rider/TopUp.jsx'
+import PopupGate from '@/ui/Popup.jsx'
 
 const PAGES = {
-  topup: TopUp, withdraw: P.Withdraw,
+  topup: TopUp, withdraw: P.Withdraw, busmode: P.BusMode,
   trips: P.Trips, trip: P.TripDetail, scheduled: P.Scheduled, wallet: P.Wallet, earnings: P.Earnings, invite: P.Invite, referrals: P.Referrals,
   notifications: P.Notifications, support: P.Support, profile: P.Profile, edit: P.EditProfile, vehicle: P.Vehicle, documents: P.Documents,
   settings: P.Settings, chat: P.ChatPage, city: P.City,
@@ -38,6 +39,7 @@ export default function App() {
     else body = (
       <NavProvider render={(p) => { const C = PAGES[p.name]; return C ? <C {...p.params} /> : null }}>
         <Home />
+        <PopupGate audience="drivers" city={driver.city} />
       </NavProvider>
     )
   }

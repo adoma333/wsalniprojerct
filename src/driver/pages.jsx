@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   CheckCircle2, XCircle, ThumbsDown, User, Mail, Shuffle, Car, FileText, Languages, Settings as SetIco, LogOut, UserX, Camera, Copy, Share2, Gift,
   Users, CalendarClock, ArrowDownLeft, ArrowUpRight, TrendingUp, Clock, Wallet as WalletIco, MapPin, Banknote, Info,
-  Plus, AlertTriangle, Landmark, Smartphone, CreditCard, Hash, ShieldCheck,
+  Plus, AlertTriangle, Landmark, Smartphone, CreditCard, Hash, ShieldCheck, Bus,
 } from 'lucide-react'
+import { watchLines, demoLines, linePath, measure, project, pushBus, stopBus } from '@/core/bus.js'
+import { watchPosition, currentPosition } from '@/core/geo.js'
 import { Page, Empty, Row, Sheet, toast, Avatar, Stars, useNav } from '@/ui/kit.jsx'
 import Scanner from '@/ui/Scanner.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
@@ -421,6 +423,66 @@ export function Documents() {
       </div>
       <Scanner open={!!scan} onClose={() => setScan(null)} onDone={save} shape={scan === 'carPhoto' ? 'wide' : 'card'} title={DOC_LIST.find(([k]) => k === scan)?.[1]}
         steps={[tr('قراءة الوثيقة', 'Reading document'), tr('التحقق من الصلاحية', 'Checking validity'), tr('تحديث الملف', 'Updating profile')]} successText={tr('الوثيقة مقبولة ✓', 'Document accepted ✓')} />
+    </Page>
+  )
+}
+
+// ===== وضع سائق الحافلة: يبث موقع الحافلة للزبائن مباشرة =====
+export function BusMode() {
+  const { uid, driver, settings } = useApp()
+  const city = CITIES.find((c) => c.id === driver.city) || CITIES[0]
+  const [lines, setLines] = useState(null)
+  const [line, setLine] = useState(() => localStorage.getItem('w_busline') || '')
+  const [on, setOn] = useState(false)
+  const [info, setInfo] = useState(null)
+  useEffect(() => watchLines((l) => setLines(l.filter((x) => !x.city || x.city === driver.city))), [])
+  const all = lines && (lines.length || settings.bus?.demo === false ? lines : city.id === 'sba' ? demoLines(city.center) : [])
+  const L = all?.find((l) => l.id === line)
+  useEffect(() => {
+    if (!on || !L) return
+    let stop = () => {}, lastD = null, dir = 1, alive = true, m = null, pos = null
+    // نبعثو آخر موقع كل 5 ثواني (حتى كي تكون الحافلة واقفة في محطة)
+    const send = () => {
+      if (!alive || !pos) return
+      // المسار مازال ما تحمّلش: نبعثو الموقع برك، والزبون يحسب البلاصة على الخط
+      if (!m) { pushBus(uid, { line: L.id, coords: pos.coords, heading: pos.heading || 0, dir, name: driver.name, plate: driver.vehicle?.plate || '' }).catch(() => {}); return }
+      const pr = project(m, pos.coords)
+      if (lastD != null && Math.abs(pr.d - lastD) > 0.015) dir = pr.d > lastD ? 1 : -1
+      lastD = pr.d
+      setInfo({ off: pr.off, d: pr.d, len: m.len, dir })
+      pushBus(uid, { line: L.id, coords: pos.coords, heading: pos.heading || 0, d: pr.d, dir, name: driver.name, plate: driver.vehicle?.plate || '' }).catch(() => {})
+    }
+    linePath(L).then((p) => { m = measure(p); send() })
+    watchPosition((p) => { pos = p }).then((s) => (stop = s))
+    currentPosition().then((p) => { if (p && !pos) { pos = p; send() } })
+    const t = setInterval(send, 5000)
+    return () => { alive = false; clearInterval(t); stop(); stopBus(uid) }
+  }, [on, L?.id])
+  return (
+    <Page title={tr('وضع سائق الحافلة', 'Bus driver mode')}>
+      <div className="card pad flex" style={{ background: 'var(--brand-50)', boxShadow: 'none' }}><Info size={20} color="var(--brand)" /><span className="small">{tr('كي تشغّل البث، الزبائن يشوفو الحافلة تاعك مباشرة في الخريطة ووقت وصولها لكل محطة. خلّي التطبيق مفتوح وانت تسوق.', 'While broadcasting, riders see your bus live with arrival times. Keep the app open while driving.')}</span></div>
+      <div className="section-title">{tr('اختار الخط', 'Choose your line')}</div>
+      {all === null && <div className="center"><span className="spinner" /></div>}
+      {all?.length === 0 && <Empty title={tr('ما كاين حتى خط في ولايتك', 'No lines in your city')} />}
+      <div className="col" style={{ gap: 8 }}>
+        {all?.map((l) => (
+          <button key={l.id} className={`method ${line === l.id ? 'active' : ''}`} disabled={on} onClick={() => { setLine(l.id); localStorage.setItem('w_busline', l.id) }}>
+            <span className="line-badge" style={{ '--lc': l.color }}>{l.number}</span>
+            <span className="grow" style={{ textAlign: 'start' }}><b>{l.name}</b><small>{(l.stops || []).length} {tr('محطات', 'stops')} • <span dir="ltr">{l.start} – {l.end}</span></small></span>
+            <span className={`radio ${line === l.id ? 'on' : ''}`} />
+          </button>
+        ))}
+      </div>
+      {on && info && (
+        <div className="card pad mt">
+          <div className="between small"><span className="muted">{tr('الحالة', 'Status')}</span><span className="badge green"><i className="pulse-dot" style={{ width: 8, height: 8 }} />{tr('البث شغّال', 'Broadcasting')}</span></div>
+          <div className="between small mt"><span className="muted">{tr('على المسار', 'On route')}</span><b className="num">{Math.round((info.d / Math.max(0.01, info.len)) * 100)}% {info.dir > 0 ? '→' : '←'}</b></div>
+          {info.off > 0.3 && <div className="tiny mt" style={{ color: 'var(--danger)' }}>{tr(`راك بعيد على مسار الخط بـ ${info.off.toFixed(1)} كم`, `You are ${info.off.toFixed(1)} km off the route`)}</div>}
+        </div>
+      )}
+      <button className={`btn btn-block btn-lg mt ${on ? 'btn-dark' : 'btn-primary'}`} disabled={!L} onClick={() => { setOn(!on); toast(on ? tr('وقّفت البث', 'Broadcast stopped') : tr('البث بدا، طريق السلامة 🚌', 'Broadcast started 🚌'), on ? '' : 'success') }}>
+        <Bus size={20} />{on ? tr('وقّف البث', 'Stop broadcasting') : tr('ابدا البث', 'Start broadcasting')}
+      </button>
     </Page>
   )
 }

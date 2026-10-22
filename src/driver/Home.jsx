@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Menu, Zap, Crosshair, Layers, Phone, MessageCircle, Navigation, MapPin, Flag, Banknote, Wallet, Clock, Star, X, ShieldAlert, Map as MapIco,
   CalendarClock, BadgeDollarSign, Gift, Users, Bell, LifeBuoy, Info, Check, Route as RouteIco, Coins,
-  KeyRound, AlertTriangle, ChevronLeft, SlidersHorizontal, Trophy,
+  KeyRound, AlertTriangle, ChevronLeft, SlidersHorizontal, Trophy, Bus as BusIcon,
 } from 'lucide-react'
 import MapView from '@/map/MapView.jsx'
 import MapControls, { useMapPrefs } from '@/map/MapControls.jsx'
@@ -282,7 +282,7 @@ export default function Home() {
       </DragPanel>
 
       <FiltersSheet open={fltOpen} onClose={() => setFltOpen(false)} value={flt} onSave={(v) => { updateDriver(uid, { filters: v }); setFltOpen(false); toast(tr('الفلتر تسجّل ✓', 'Filters saved ✓'), 'success') }} />
-      <DriverDrawer open={drawer} onClose={() => setDrawer(false)} driver={driver} nav={nav} online={online} />
+      <DriverDrawer open={drawer} onClose={() => setDrawer(false)} driver={driver} nav={nav} online={online} settings={settings} />
     </div>
   )
 }
@@ -486,7 +486,7 @@ function Collect({ ride, uid, settings }) {
   )
 }
 
-function DriverDrawer({ open, onClose, driver, nav, online }) {
+function DriverDrawer({ open, onClose, driver, nav, online, settings }) {
   const go = (p) => { onClose(); setTimeout(() => nav.push(p), 60) }
   return (
     <Drawer open={open} onClose={onClose}
@@ -509,6 +509,7 @@ function DriverDrawer({ open, onClose, driver, nav, online }) {
       <DrawerItem icon={<CalendarClock size={19} />} color="#475569" label={tr('كورسات محجوزة ولا مبرمجة', 'Scheduled rides')} onClick={() => go('scheduled')} />
       <DrawerItem icon={<Wallet size={19} />} color="#a16207" label={tr('البورتفاي', 'Wallet')} onClick={() => go('wallet')} />
       <DrawerItem icon={<BadgeDollarSign size={19} />} color="#16a34a" label={tr('المدخول', 'Earnings')} onClick={() => go('earnings')} />
+      {settings?.features?.bus !== false && <DrawerItem icon={<BusIcon size={19} />} color="#2E90FA" label={tr('وضع سائق الحافلة', 'Bus driver mode')} onClick={() => go('busmode')} />}
       <DrawerItem icon={<Gift size={19} />} color="#ef4444" label={tr('عرّض الشيفورات', 'Invite drivers')} onClick={() => go('invite')} />
       <DrawerItem icon={<Users size={19} />} color="#475569" label={tr('الإحالات تاعي', 'My referrals')} onClick={() => go('referrals')} />
       <DrawerItem icon={<Bell size={19} />} color="#a855f7" label={tr('الإشعارات', 'Notifications')} onClick={() => go('notifications')} />

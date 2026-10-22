@@ -101,6 +101,9 @@ export function Settings({ extra }) {
   const [langOpen, setLangOpen] = useState(false)
   const pickTheme = (t) => { setT(t); setTheme(t) }
   const [snd, setSnd] = useState(soundOn())
+  const [doc, setDoc] = useState(null)
+  const { settings } = useApp()
+  const DOC = { terms: [tr('الشروط والأحكام', 'Terms'), settings?.content?.terms || tr('باستعمالك لوصلني راك موافق على احترام الشيفورات والزبائن، دفع السومة المتفق عليها، وعدم استعمال التطبيق لأي غرض مخالف للقانون الجزائري.', 'By using Wasalni you agree to our terms.')], privacy: [tr('سياسة الخصوصية', 'Privacy policy'), settings?.content?.privacy || tr('نحفظو غير المعلومات اللازمة للكورسات (الاسم، الرقم، البلاصة وقت الكورسة). ما نبيعو حتى معلومة، والوثائق ما يشوفها غير فريق المراجعة.', 'We only keep what is needed for rides and never sell your data.')] }
   return (
     <Page title={tr('الإعدادات', 'Settings')}>
       <div className="section-title">{tr('الشكل', 'Appearance')}</div>
@@ -114,10 +117,13 @@ export function Settings({ extra }) {
         <Row icon={<Languages size={19} />} color="#0f172a" title={tr('اللغة', 'Language')} sub={LANG === 'ar' ? 'العربية' : 'English'} onClick={() => setLangOpen(true)} />
         <Row icon={snd ? <Volume2 size={19} /> : <VolumeX size={19} />} color="#E8650A" title={tr('أصوات الإشعارات', 'Notification sounds')} sub={snd ? tr('مفعّلة', 'On') : tr('مطفية', 'Off')} chevron={false} right={<Switch on={snd} onChange={(v) => { setSound(v); setSnd(v) }} />} />
         {extra}
-        <Row icon={<Shield size={19} />} color="#12B76A" title={tr('الخصوصية والأمان', 'Privacy & security')} sub={tr('بياناتك مشفرة ولا تُباع', 'Your data is encrypted')} />
-        <Row icon={<FileText size={19} />} color="#64748b" title={tr('الشروط والأحكام', 'Terms')} />
+        <Row icon={<Shield size={19} />} color="#12B76A" title={tr('الخصوصية والأمان', 'Privacy & security')} sub={tr('بياناتك مشفرة ولا تُباع', 'Your data is encrypted')} onClick={() => setDoc('privacy')} />
+        <Row icon={<FileText size={19} />} color="#64748b" title={tr('الشروط والأحكام', 'Terms')} onClick={() => setDoc('terms')} />
         <Row icon={<Info size={19} />} color="#2E90FA" title={tr('على التطبيق', 'About')} sub={`v1.0 • ${MODE !== 'local' ? tr('مكونيكتي', 'Online') : tr('وضع العرض', 'Demo mode')}`} />
       </div>
+      <Sheet open={!!doc} onClose={() => setDoc(null)} title={doc ? DOC[doc][0] : ''}>
+        <div className="small" style={{ whiteSpace: 'pre-line', lineHeight: 1.9, maxHeight: '60vh', overflow: 'auto' }}>{doc ? DOC[doc][1] : ''}</div>
+      </Sheet>
       <Sheet open={langOpen} onClose={() => setLangOpen(false)} title={tr('اختار اللغة', 'Choose language')}>
         <div className="col">
           <button className={`btn btn-block ${LANG === 'ar' ? 'btn-dark' : 'btn-ghost'}`} onClick={() => setLang('ar')}>العربية</button>

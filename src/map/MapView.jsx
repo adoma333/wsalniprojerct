@@ -21,6 +21,11 @@ function markerEl(m) {
     d.style.width = d.style.height = (m.size || 44) + 'px'
     return d
   }
+  if (m.type === 'bus') {
+    const d = el(`<div class="bus-pin" style="--lc:${esc(m.color || '#E8650A')}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6M16 6v6M2 12h19.6M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg><b>${esc(m.label || '')}</b>${m.live ? '<i class="live"></i>' : ''}</div>`, 'bus-marker')
+    return d
+  }
+  if (m.type === 'busstop') return el(`${m.label ? `<div class="pin-label sm"><span>${esc(m.label)}</span></div>` : ''}<div class="stop-pin ${m.near ? 'near' : ''}" style="--lc:${esc(m.color || '#18120e')}"><span>🚏</span></div>`, 'pin-marker stop-marker')
   if (m.type === 'me') return el('<span class="me-acc"></span><span class="me-cone"></span><span class="me-dot"></span>', 'me-marker')
   const label = m.label ? `<div class="pin-label">${m.eta ? `<span class="eta">${esc(m.eta)}</span>` : ''}<span>${esc(m.label)}</span></div>` : ''
   const dot = m.type === 'pickup' ? '<div class="pin-pulse"></div><div class="dot-pickup"></div>' : m.type === 'stop' ? '<div class="dot-drop" style="border-color:var(--warning)"></div>' : '<div class="dot-drop"></div>'
@@ -151,28 +156,29 @@ const MapView = forwardRef(function MapView({ center = [-0.6309, 35.1899], zoom 
       if (!x?.coords) continue
       seen.add(x.id)
       let e = mk.current.get(x.id)
-      const sig = `${x.type}|${x.label || ''}|${x.eta || ''}|${x.color || ''}|${x.size || ''}`
+      const sig = `${x.type}|${x.label || ''}|${x.eta || ''}|${x.color || ''}|${x.size || ''}|${x.near ? 1 : 0}|${x.live ? 1 : 0}`
       if (e && e.sig !== sig) { e.marker.remove(); mk.current.delete(x.id); e = null }
       if (!e) {
         const node = markerEl(x)
-        const marker = new maplibregl.Marker({ element: node, anchor: x.type === 'car' || x.type === 'me' ? 'center' : 'bottom', rotationAlignment: x.type === 'car' ? 'map' : 'viewport', pitchAlignment: x.type === 'car' ? 'map' : 'viewport' }).setLngLat(x.coords).addTo(m)
-        if (x.onClick) node.addEventListener('click', x.onClick)
+        const marker = new maplibregl.Marker({ element: node, anchor: x.type === 'car' || x.type === 'me' || x.type === 'bus' ? 'center' : 'bottom', rotationAlignment: x.type === 'car' ? 'map' : 'viewport', pitchAlignment: x.type === 'car' ? 'map' : 'viewport' }).setLngLat(x.coords).addTo(m)
+        node.addEventListener('click', (ev) => { const cur = mk.current.get(x.id); if (cur?.cb) { ev.stopPropagation(); cur.cb() } })
         if (x.type === 'car') marker.setRotation(x.heading || 0)
-        e = { marker, node, sig, rot: x.heading || 0, anim: null }
+        e = { marker, node, sig, rot: x.heading || 0, anim: null, cb: x.onClick }
         mk.current.set(x.id, e)
-      } else if (x.type === 'car') {
+      } else if (x.type === 'car' || x.type === 'bus') {
+        e.cb = x.onClick
         const from = e.marker.getLngLat().toArray(), to = x.coords, t0 = performance.now(), dur = x.smooth ?? 1300
         const r0 = e.rot, r1 = x.heading ?? r0
         cancelAnimationFrame(e.anim)
         const stepF = (t) => {
           const k = Math.min(1, (t - t0) / dur), ease = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
           e.marker.setLngLat([from[0] + (to[0] - from[0]) * ease, from[1] + (to[1] - from[1]) * ease])
-          e.rot = lerpAngle(r0, r1, Math.min(1, k * 1.6))
-          e.marker.setRotation(e.rot)
+          if (x.type === 'car') { e.rot = lerpAngle(r0, r1, Math.min(1, k * 1.6)); e.marker.setRotation(e.rot) }
           if (k < 1) e.anim = requestAnimationFrame(stepF)
         }
         e.anim = requestAnimationFrame(stepF)
       } else {
+        e.cb = x.onClick
         e.marker.setLngLat(x.coords)
         if (x.type === 'me') e.node.classList.toggle('has-heading', x.heading != null && !isNaN(x.heading)), e.node.style.setProperty('--hd', (x.heading || 0) + 'deg')
       }

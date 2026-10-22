@@ -123,6 +123,10 @@ service cloud.firestore {
     }
     // مرآة عامة لكورسة لشخص آخر (المفتاح عشوائي وغير قابل للتخمين)
     match /shares/{key} { allow get: if true; allow list: if false; allow create, update: if signedIn() && request.resource.data.uid == request.auth.uid; allow delete: if isAdmin(); }
+    match /busLines/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /buses/{uid} { allow read: if true; allow create, update: if me(uid) && request.resource.data.uid == request.auth.uid; allow delete: if me(uid) || isAdmin(); }
+    match /popups/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /popupStats/{id} { allow read: if true; allow create: if signedIn(); allow update: if signedIn() && onlyChanges(['views', 'clicks', 'closes', 'updatedAt']); allow delete: if isAdmin(); }
     match /students/{uid} { allow create, update: if me(uid) || isAdmin(); allow read, delete: if isAdmin(); }
     match /audit/{id} { allow read, create: if isAdmin(); allow update, delete: if false; }
     match /sos/{id} { allow create: if signedIn(); allow read, update, delete: if isAdmin(); }

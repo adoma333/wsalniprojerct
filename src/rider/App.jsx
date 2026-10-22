@@ -13,10 +13,12 @@ import Rewards from './Rewards.jsx'
 import TopUp from './TopUp.jsx'
 import Student from './Student.jsx'
 import Track from './Track.jsx'
+import BusPage from './Bus.jsx'
+import PopupGate from '@/ui/Popup.jsx'
 import * as P from './pages.jsx'
 
 const PAGES = {
-  search: SearchPage, reels: Reels, rewards: Rewards, topup: TopUp, student: Student, trips: P.Trips, trip: P.TripDetail, wallet: P.Wallet, promo: P.Promo,
+  search: SearchPage, reels: Reels, rewards: Rewards, topup: TopUp, student: Student, bus: BusPage, trips: P.Trips, trip: P.TripDetail, wallet: P.Wallet, promo: P.Promo,
   notifications: P.Notifications, invite: P.Invite, support: P.Support, profile: P.Profile, edit: P.EditProfile, settings: P.Settings,
   places: P.Places, scheduled: P.Scheduled, about: P.About, chat: P.ChatPage,
 }
@@ -53,6 +55,7 @@ export default function App() {
             : (
               <NavProvider render={(p) => { const C = PAGES[p.name]; return C ? <C {...p.params} /> : null }}>
                 <Home />
+                <PopupGate audience="riders" city={user.city} />
               </NavProvider>
             )
       )}

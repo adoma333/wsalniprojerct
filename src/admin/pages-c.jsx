@@ -2,15 +2,18 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   Save, Plus, Trash2, MapPin, Power, Percent, Check, X, Download, CreditCard, GraduationCap, ShieldCheck, Wrench, History, Radio, Car, Users,
-  Search, Image as ImageIcon, Zap, Banknote, Smartphone, Ticket, AlertTriangle, Settings2,
+  Search, Image as ImageIcon, Zap, Banknote, Smartphone, Ticket, AlertTriangle, Settings2, Bus, Sparkles, Navigation, MonitorSmartphone, Eye, ExternalLink, Video, Upload, FileText,
 } from 'lucide-react'
+import { PopupView } from '@/ui/Popup.jsx'
+import { watchAllLines, watchLiveBuses, saveLine, deleteLine, linePath, measure, simBuses, demoLines } from '@/core/bus.js'
+import { route } from '@/core/geo.js'
 import MapView from '@/map/MapView.jsx'
 import { Switch, toast, Empty, Avatar } from '@/ui/kit.jsx'
 import { StatusBadge } from '@/ui/ride-ui.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
-import { money, num, dateTime, timeAgo, compact } from '@/core/util.js'
+import { money, num, dateTime, timeAgo, compact, compressImage } from '@/core/util.js'
 import { CITIES } from '@/core/config.js'
-import { saveSettings, reviewTopup, reviewStudent, watchTopups, watchStudents, watchAudit, METHOD_NAMES, store, watchWithdrawals, reviewWithdraw, WITHDRAW_METHODS } from '@/core/api.js'
+import { saveSettings, reviewTopup, reviewStudent, watchTopups, watchStudents, watchAudit, METHOD_NAMES, store, watchWithdrawals, reviewWithdraw, WITHDRAW_METHODS, watchPopups, watchPopupStats, savePopup, deletePopup } from '@/core/api.js'
 import { useData } from './App.jsx'
 import { Modal, csv } from './pages-a.jsx'
 import { Bars, Donut } from './charts.jsx'
@@ -444,5 +447,325 @@ export function DriverWallet() {
         </div>
       </div>
     </>
+  )
+}
+
+// ===== خطوط الحافلات =====
+const EMPTY_LINE = { number: '', name: '', color: '#E8650A', speed: 18, headway: 12, buses: 0, start: '06:00', end: '20:00', mode: 'auto', active: true, city: 'sba', stops: [], path: null, order: 0 }
+export function BusLines() {
+  const { settings } = useApp()
+  const lines = useWatch(watchAllLines)
+  const live = useWatch(watchLiveBuses)
+  const [edit, setEdit] = useState(null)
+  const [b, setB] = useState(settings.bus)
+  const [paths, setPaths] = useState({})
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 3000); return () => clearInterval(t) }, [])
+  useEffect(() => { lines.forEach((l) => { if (!paths[l.id]) linePath(l).then((p) => setPaths((x) => ({ ...x, [l.id]: p }))) }) }, [lines.map((l) => l.id + l.updatedAt).join()])
+  const markers = [], routes = []
+  for (const l of lines.filter((x) => x.active !== false && paths[x.id]?.length > 1)) {
+    const m = measure(paths[l.id])
+    routes.push({ id: 'l' + l.id, coords: paths[l.id], color: l.color, from: l.color, to: l.color, width: 4, flow: false, casing: '#fff' })
+    ;(l.stops || []).forEach((s, i) => markers.push({ id: `s${l.id}${i}`, type: 'busstop', coords: s.coords, color: l.color }))
+    const real = live.filter((x) => x.line === l.id)
+    real.forEach((x) => markers.push({ id: 'lv' + x.uid, type: 'bus', coords: x.coords, label: l.number, color: l.color, live: true }))
+    if ((l.mode || 'auto') === 'sim' || (l.mode !== 'live' && !real.length && b.simulate !== false)) simBuses(l, m, now).forEach((x) => markers.push({ id: x.id, type: 'bus', coords: x.coords, label: l.number, color: l.color, smooth: 2900 }))
+  }
+  const c0 = CITIES.find((c) => c.id === (lines[0]?.city || 'sba')) || CITIES[0]
+  const save = async () => { await saveSettings({ bus: b, features: { ...settings.features, bus: b.enabled !== false } }, 'تحديث إعدادات الحافلات'); toast('تم الحفظ ✅', 'success') }
+  const importDemo = async () => {
+    for (const l of demoLines(CITIES[0].center)) { const { id, demo, ...data } = l; await saveLine(null, { ...data, city: 'sba', active: true, mode: 'auto' }) }
+    toast('أضيفت 3 خطوط لسيدي بلعباس — عدّلها كيما تحب', 'success')
+  }
+  return (
+    <>
+      <div className="kpis">
+        <div className="kpi hero"><span className="ki"><Bus size={20} /></span><b className="num">{lines.filter((l) => l.active !== false).length}</b><small>خطوط نشطة</small></div>
+        <div className="kpi"><span className="ki" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}><MapPin size={20} /></span><b className="num">{lines.reduce((s, l) => s + (l.stops || []).length, 0)}</b><small>محطات</small></div>
+        <div className="kpi"><span className="ki" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}><Radio size={20} /></span><b className="num">{live.length}</b><small>حافلات تبث مباشرة</small></div>
+      </div>
+      <div className="grid-main">
+        <div className="col">
+          <div className="panel-card" style={{ padding: 10 }}>
+            <div className="live-map" style={{ height: 440 }}><MapView center={c0.center} zoom={12.6} markers={markers} routes={routes} /></div>
+          </div>
+          <div className="toolbar">
+            <b className="grow">الخطوط</b>
+            {lines.length === 0 && <button className="btn btn-ghost btn-sm" onClick={importDemo}><Sparkles size={16} />استيراد خطوط تجريبية</button>}
+            <button className="btn btn-primary btn-sm" onClick={() => setEdit({ ...EMPTY_LINE, order: lines.length })}><Plus size={16} />خط جديد</button>
+          </div>
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>الخط</th><th>الولاية</th><th>المحطات</th><th>الأوقات</th><th>كل</th><th>الوضع</th><th>نشط</th><th /></tr></thead>
+              <tbody>
+                {lines.map((l) => (
+                  <tr key={l.id}>
+                    <td><span className="flex" style={{ gap: 8 }}><span className="line-badge" style={{ '--lc': l.color }}>{l.number}</span><b className="small">{l.name}</b></span></td>
+                    <td className="small">{CITIES.find((c) => c.id === l.city)?.ar || '—'}</td>
+                    <td className="num small">{(l.stops || []).length}</td>
+                    <td className="num small" dir="ltr">{l.start} – {l.end}</td>
+                    <td className="num small">{l.headway} د</td>
+                    <td className="small">{{ auto: 'تلقائي', live: 'مباشر فقط', sim: 'تقديري' }[l.mode || 'auto']}</td>
+                    <td><Switch on={l.active !== false} onChange={(v) => saveLine(l.id, { active: v })} /></td>
+                    <td><span className="flex" style={{ gap: 6 }}><button className="btn btn-xs btn-ghost" onClick={() => setEdit(l)}>تعديل</button><button className="btn btn-xs btn-danger" onClick={async () => { if (confirm(`حذف الخط ${l.number}؟`)) { await deleteLine(l.id); toast('تم الحذف') } }}><Trash2 size={14} /></button></span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {lines.length === 0 && <Empty icon={<Bus size={34} />} title="ما كاين حتى خط" sub="أضف خطًا جديدًا أو استورد الخطوط التجريبية. بلا خطوط، التطبيق يبيّن خطوط تجريبية لسيدي بلعباس إذا فعّلتها." />}
+          </div>
+        </div>
+        <div className="col">
+          <div className="panel-card">
+            <h3>إعدادات الحافلات<span className="sp" /><button className="btn btn-primary btn-sm" onClick={save}><Save size={16} />حفظ</button></h3>
+            <div className="col">
+              <label className="between small"><span><b>تتبّع الحافلات في التطبيق</b><div className="tiny muted">زر "الحافلة" في الواجهة الرئيسية</div></span><Switch on={b.enabled !== false} onChange={(v) => setB({ ...b, enabled: v })} /></label>
+              <label className="between small"><span><b>حافلات تقديرية</b><div className="tiny muted">إذا ما كاينش سائق يبث موقعه، نبيّنو الحافلات حسب جدول الخط (التوقيت وعدد المرات)</div></span><Switch on={b.simulate !== false} onChange={(v) => setB({ ...b, simulate: v })} /></label>
+              <label className="between small"><span><b>خطوط تجريبية</b><div className="tiny muted">تظهر لسيدي بلعباس فقط ما دام ما زدتش خطوط</div></span><Switch on={b.demo !== false} onChange={(v) => setB({ ...b, demo: v })} /></label>
+            </div>
+          </div>
+          <div className="panel-card">
+            <h3><Radio size={18} />الحافلات المباشرة</h3>
+            {live.length === 0 && <div className="tiny muted">سائق الحافلة يفتح تطبيق السائق ← القائمة ← "وضع سائق الحافلة" ← يختار الخط ويبدا البث.</div>}
+            {live.map((x) => <div key={x.uid} className="feed-item"><span className="line-badge" style={{ '--lc': lines.find((l) => l.id === x.line)?.color }}>{lines.find((l) => l.id === x.line)?.number || '?'}</span><span className="grow small"><b>{x.name}</b><div className="tiny muted num">{x.plate}</div></span><span className="tiny muted">{timeAgo(x.at)}</span></div>)}
+          </div>
+        </div>
+      </div>
+      {edit && <LineEditor l={edit} onClose={() => setEdit(null)} />}
+    </>
+  )
+}
+function LineEditor({ l, onClose }) {
+  const [f, setF] = useState(l)
+  const [busy, setBusy] = useState(false)
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'number' ? N(e.target.value) : e.target.value })
+  const city = CITIES.find((c) => c.id === f.city) || CITIES[0]
+  const addStop = (coords) => setF((x) => ({ ...x, path: null, stops: [...(x.stops || []), { name: `محطة ${(x.stops || []).length + 1}`, coords: coords.map((v) => +v.toFixed(6)) }] }))
+  const mapReady = (m) => m.on('click', (e) => addStop([e.lngLat.lng, e.lngLat.lat]))
+  const moveStop = (i, d) => { const s = [...f.stops]; const j = i + d; if (j < 0 || j >= s.length) return; [s[i], s[j]] = [s[j], s[i]]; setF({ ...f, stops: s, path: null }) }
+  const calc = async () => {
+    if ((f.stops || []).length < 2) return toast('زيد محطتين على الأقل', 'error')
+    setBusy(true)
+    const r = await route(f.stops.map((s) => s.coords))
+    setF((x) => ({ ...x, path: r?.coords || null, km: r ? +r.distanceKm.toFixed(1) : null }))
+    setBusy(false)
+    toast(r?.real ? `المسار على الطرقات: ${r.distanceKm.toFixed(1)} كم ✅` : 'ما قدرناش نجيبو المسار، راح نستعملو خطوط مستقيمة', r?.real ? 'success' : '')
+  }
+  const save = async () => {
+    if (!f.number || !f.name || (f.stops || []).length < 2) return toast('دخّل رقم الخط واسمه ومحطتين على الأقل', 'error')
+    const { id, ...data } = f
+    await saveLine(id, data)
+    toast('تم حفظ الخط ✅', 'success'); onClose()
+  }
+  const markers = (f.stops || []).map((s, i) => ({ id: 'e' + i, type: 'busstop', coords: s.coords, color: f.color, label: `${i + 1}. ${s.name}` }))
+  return (
+    <Modal title={l.id ? `تعديل الخط ${l.number}` : 'خط جديد'} onClose={onClose} wide>
+      <div className="grid-main" style={{ marginTop: 0 }}>
+        <div className="col">
+          <div className="tiny muted">اضغط على الخريطة باش تزيد محطة في البلاصة اللي ضغطت فيها.</div>
+          <div className="live-map" style={{ height: 380 }}><MapView center={f.stops?.[0]?.coords || city.center} zoom={13} markers={markers} routes={(f.path || (f.stops || []).map((s) => s.coords)).length > 1 ? [{ id: 'ed', coords: f.path || f.stops.map((s) => s.coords), color: f.color, from: f.color, to: f.color, width: 5, flow: false, dashed: !f.path }] : []} onReady={mapReady} /></div>
+          <div className="flex"><button className="btn btn-ghost btn-sm" disabled={busy} onClick={calc}>{busy ? <span className="spinner" /> : <Navigation size={16} />}حساب المسار على الطرقات</button>{f.km && <span className="badge green">{f.km} كم</span>}{!f.path && <span className="tiny muted">بلا حساب: خطوط مستقيمة بين المحطات</span>}</div>
+          <div className="col" style={{ gap: 6, maxHeight: 260, overflow: 'auto' }}>
+            {(f.stops || []).map((s, i) => (
+              <div key={i} className="flex" style={{ gap: 6 }}>
+                <span className="line-badge" style={{ '--lc': f.color, minWidth: 28, height: 28 }}>{i + 1}</span>
+                <input className="input" style={{ height: 38 }} value={s.name} onChange={(e) => setF({ ...f, stops: f.stops.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
+                <button className="btn btn-xs btn-ghost" onClick={() => moveStop(i, -1)}>▲</button>
+                <button className="btn btn-xs btn-ghost" onClick={() => moveStop(i, 1)}>▼</button>
+                <button className="btn btn-xs btn-danger" onClick={() => setF({ ...f, path: null, stops: f.stops.filter((_, j) => j !== i) })}><Trash2 size={13} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="col">
+          <div className="form-grid">
+            <Field label="رقم الخط *"><input className="input" value={f.number} onChange={set('number')} placeholder="7" /></Field>
+            <Field label="اللون"><input className="input" type="color" value={f.color} onChange={set('color')} style={{ padding: 4 }} /></Field>
+          </div>
+          <Field label="اسم الخط *"><input className="input" value={f.name} onChange={set('name')} placeholder="المحطة البرية ⇄ الجامعة" /></Field>
+          <Field label="الولاية"><select className="input" value={f.city} onChange={set('city')}>{CITIES.map((c) => <option key={c.id} value={c.id}>{c.ar}</option>)}</select></Field>
+          <div className="form-grid">
+            <Field label="أول حافلة"><input className="input num" type="time" value={f.start} onChange={set('start')} /></Field>
+            <Field label="آخر حافلة"><input className="input num" type="time" value={f.end} onChange={set('end')} /></Field>
+            <Field label="كل (دقيقة)" hint="الوقت بين حافلتين"><input className="input num" type="number" value={f.headway} onChange={set('headway')} /></Field>
+            <Field label="السرعة (كم/سا)" hint="مع التوقف في المحطات"><input className="input num" type="number" value={f.speed} onChange={set('speed')} /></Field>
+            <Field label="عدد الحافلات" hint="0 = حسب التوقيت"><input className="input num" type="number" value={f.buses || 0} onChange={set('buses')} /></Field>
+            <Field label="الترتيب"><input className="input num" type="number" value={f.order || 0} onChange={set('order')} /></Field>
+          </div>
+          <Field label="مصدر المواقع">
+            <div className="seg">{[['auto', 'تلقائي'], ['live', 'مباشر فقط'], ['sim', 'تقديري']].map(([k, t]) => <button key={k} className={(f.mode || 'auto') === k ? 'active' : ''} onClick={() => setF({ ...f, mode: k })}>{t}</button>)}</div>
+          </Field>
+          <div className="tiny muted">تلقائي: نبيّنو الحافلات المباشرة، وإذا ما كاينش نبيّنو حافلات تقديرية حسب التوقيت.</div>
+          <label className="flex small mt"><Switch on={f.active !== false} onChange={(v) => setF({ ...f, active: v })} />الخط نشط</label>
+          <button className="btn btn-primary mt" onClick={save}><Save size={18} />حفظ الخط</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ===== نوافذ الإشعار بالشاشة كاملة =====
+const EMPTY_POP = { title: '', badge: 'جديد', body: '', image: '', video: '', link: '', cta: 'اكتشف', audience: 'all', cities: [], freq: 'once', start: null, end: null, closeAfter: 0, layout: 'full', theme: 'dark', accent: '#E8650A', priority: 0, active: true }
+const toLocal = (ms) => (ms ? new Date(ms - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '')
+const fromLocal = (v) => (v ? new Date(v).getTime() : null)
+export function Popups() {
+  const list = useWatch(watchPopups)
+  const stats = useWatch(watchPopupStats)
+  const [edit, setEdit] = useState(null)
+  const st = Object.fromEntries(stats.map((x) => [x.id, x]))
+  const now = Date.now()
+  const status = (p) => (p.active === false ? ['gray', 'متوقفة'] : p.end && now > p.end ? ['red', 'منتهية'] : p.start && now < p.start ? ['yellow', 'مبرمجة'] : ['green', 'تظهر دروك'])
+  return (
+    <>
+      <div className="kpis">
+        <div className="kpi hero"><span className="ki"><MonitorSmartphone size={20} /></span><b className="num">{list.filter((p) => status(p)[0] === 'green').length}</b><small>نوافذ تظهر دروك</small></div>
+        <div className="kpi"><span className="ki" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}><Eye size={20} /></span><b className="num">{compact(stats.reduce((s, x) => s + (x.views || 0), 0))}</b><small>مشاهدات</small></div>
+        <div className="kpi"><span className="ki" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}><ExternalLink size={20} /></span><b className="num">{compact(stats.reduce((s, x) => s + (x.clicks || 0), 0))}</b><small>نقرات على الزر</small></div>
+      </div>
+      <div className="toolbar mt">
+        <span className="small muted grow">نافذة تملأ الشاشة تظهر للمستخدم كي يدخل للتطبيق: صورة ولا فيديو، عنوان، نص وزر برابط.</span>
+        <button className="btn btn-primary btn-sm" onClick={() => setEdit({ ...EMPTY_POP })}><Plus size={16} />نافذة جديدة</button>
+      </div>
+      {list.length === 0 && <div className="panel-card"><Empty icon={<MonitorSmartphone size={36} />} title="ما كاين حتى نافذة" sub="أضف نافذة إشعار تظهر للزبائن ولا السائقين كي يفتحو التطبيق" action={<button className="btn btn-primary btn-sm" onClick={() => setEdit({ ...EMPTY_POP })}><Plus size={16} />إضافة نافذة</button>} /></div>}
+      <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))' }}>
+        {list.map((p) => {
+          const s = st[p.id] || {}, [c, t] = status(p)
+          return (
+            <div key={p.id} className="reel-tile">
+              <div className="th" style={{ backgroundImage: p.image ? `url(${p.image})` : 'linear-gradient(135deg,#E8650A,#7B0E13)' }}>
+                <span className={`badge ${c}`}>{t}</span>
+                {p.video && <Video size={18} color="#fff" style={{ position: 'absolute', top: 10, insetInlineEnd: 10 }} />}
+              </div>
+              <div className="bd">
+                <b className="small">{p.title || '(بلا عنوان)'}</b>
+                <div className="tiny muted">{{ all: 'الجميع', riders: 'الزبائن', drivers: 'السائقون' }[p.audience || 'all']} • {{ once: 'مرة وحدة', daily: 'كل يوم', always: 'كل دخول' }[p.freq || 'once']}</div>
+                <div className="flex tiny muted mt" style={{ justifyContent: 'space-between' }}><span><Eye size={12} /> {compact(s.views || 0)}</span><span><ExternalLink size={12} /> {compact(s.clicks || 0)}</span><span>{s.views ? Math.round(((s.clicks || 0) / s.views) * 100) : 0}% نقر</span></div>
+                <div className="flex mt"><button className="btn btn-xs btn-ghost grow" onClick={() => setEdit(p)}>تعديل</button><button className="btn btn-xs btn-ghost" onClick={() => savePopup(p.id, { active: p.active === false })}>{p.active === false ? 'تشغيل' : 'إيقاف'}</button><button className="btn btn-xs btn-danger" onClick={async () => { if (confirm('حذف النافذة؟')) { await deletePopup(p.id); toast('تم الحذف') } }}><Trash2 size={14} /></button></div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {edit && <PopupEditor p={edit} onClose={() => setEdit(null)} />}
+    </>
+  )
+}
+function PopupEditor({ p, onClose }) {
+  const [f, setF] = useState(p)
+  const [busy, setBusy] = useState(false)
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'number' ? N(e.target.value) : e.target.value })
+  const upVideo = (file) => {
+    if (!file) return
+    if (file.size > 8 * 1024 * 1024) return toast('الفيديو كبير بزاف (أقصى 8 ميغا). استعمل رابط MP4 ولا يوتيوب', 'error')
+    const r = new FileReader(); r.onload = () => setF((x) => ({ ...x, video: r.result })); r.readAsDataURL(file)
+  }
+  const save = async () => {
+    if (!f.title && !f.image && !f.video) return toast('زيد عنوان ولا صورة ولا فيديو', 'error')
+    setBusy(true)
+    const { id, ...data } = f
+    try { await savePopup(id, data); toast('تم حفظ النافذة ✅', 'success'); onClose() } catch (e) { toast(e.message, 'error') }
+    setBusy(false)
+  }
+  return (
+    <Modal title={p.id ? 'تعديل النافذة' : 'نافذة جديدة'} onClose={onClose} wide>
+      <div className="grid-main" style={{ marginTop: 0 }}>
+        <div className="col">
+          <div className="form-grid">
+            <Field label="العنوان"><input className="input" value={f.title} onChange={set('title')} placeholder="خصم 50% هاد الويكاند 🎉" /></Field>
+            <Field label="الشارة"><input className="input" value={f.badge} onChange={set('badge')} placeholder="جديد" /></Field>
+          </div>
+          <Field label="النص"><textarea className="input" value={f.body} onChange={set('body')} placeholder="التفاصيل…" /></Field>
+          <div className="form-grid">
+            <Field label="رابط الزر" hint="https://… ولا رقم واتساب ولا #reels"><input className="input" dir="ltr" value={f.link} onChange={set('link')} /></Field>
+            <Field label="نص الزر"><input className="input" value={f.cta} onChange={set('cta')} /></Field>
+          </div>
+          <div className="flex" style={{ flexWrap: 'wrap' }}>
+            <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}><Upload size={16} />رفع صورة<input type="file" accept="image/*" hidden onChange={async (e) => e.target.files[0] && setF({ ...f, image: await compressImage(e.target.files[0], 1080, 0.8) })} /></label>
+            <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}><Video size={16} />رفع فيديو قصير<input type="file" accept="video/mp4,video/webm" hidden onChange={(e) => upVideo(e.target.files[0])} /></label>
+            {(f.image || f.video) && <button className="btn btn-ghost btn-sm" onClick={() => setF({ ...f, image: '', video: '' })}><Trash2 size={15} />نحّي الوسائط</button>}
+          </div>
+          <div className="form-grid">
+            <Field label="رابط صورة"><input className="input" dir="ltr" value={f.image?.startsWith('data:') ? '(صورة مرفوعة)' : f.image} onChange={set('image')} /></Field>
+            <Field label="رابط فيديو" hint="MP4 مباشر ولا يوتيوب"><input className="input" dir="ltr" value={f.video?.startsWith('data:') ? '(فيديو مرفوع)' : f.video} onChange={set('video')} /></Field>
+          </div>
+          <div className="form-grid">
+            <Field label="الجمهور"><div className="seg">{[['all', 'الجميع'], ['riders', 'الزبائن'], ['drivers', 'السائقون']].map(([k, t]) => <button key={k} className={f.audience === k ? 'active' : ''} onClick={() => setF({ ...f, audience: k })}>{t}</button>)}</div></Field>
+            <Field label="التكرار"><div className="seg">{[['once', 'مرة'], ['daily', 'كل يوم'], ['always', 'كل دخول']].map(([k, t]) => <button key={k} className={f.freq === k ? 'active' : ''} onClick={() => setF({ ...f, freq: k })}>{t}</button>)}</div></Field>
+            <Field label="الشكل"><div className="seg">{[['full', 'شاشة كاملة'], ['card', 'بطاقة']].map(([k, t]) => <button key={k} className={f.layout === k ? 'active' : ''} onClick={() => setF({ ...f, layout: k })}>{t}</button>)}</div></Field>
+            <Field label="الألوان"><div className="seg">{[['dark', 'داكن'], ['light', 'فاتح'], ['brand', 'برتقالي']].map(([k, t]) => <button key={k} className={f.theme === k ? 'active' : ''} onClick={() => setF({ ...f, theme: k })}>{t}</button>)}</div></Field>
+            <Field label="يبدا من"><input className="input" type="datetime-local" value={toLocal(f.start)} onChange={(e) => setF({ ...f, start: fromLocal(e.target.value) })} /></Field>
+            <Field label="ينتهي في"><input className="input" type="datetime-local" value={toLocal(f.end)} onChange={(e) => setF({ ...f, end: fromLocal(e.target.value) })} /></Field>
+            <Field label="زر الإغلاق يظهر بعد (ثانية)"><input className="input num" type="number" min="0" max="15" value={f.closeAfter} onChange={set('closeAfter')} /></Field>
+            <Field label="الأولوية" hint="الأكبر تظهر أولًا"><input className="input num" type="number" value={f.priority} onChange={set('priority')} /></Field>
+            <Field label="لون الزر"><input className="input" type="color" value={f.accent} onChange={set('accent')} style={{ padding: 4 }} /></Field>
+          </div>
+          <Field label="الولايات" hint="فارغ = كل الولايات">
+            <div className="flex" style={{ flexWrap: 'wrap', gap: 6 }}>{CITIES.map((c) => <button key={c.id} className={`chip ${f.cities?.includes(c.id) ? 'brand' : ''}`} onClick={() => setF({ ...f, cities: f.cities?.includes(c.id) ? f.cities.filter((x) => x !== c.id) : [...(f.cities || []), c.id] })}>{c.ar}</button>)}</div>
+          </Field>
+          <label className="flex small"><Switch on={f.active !== false} onChange={(v) => setF({ ...f, active: v })} />النافذة نشطة</label>
+          <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? <span className="spinner" /> : <Save size={18} />}حفظ ونشر</button>
+        </div>
+        <div>
+          <div className="small muted center" style={{ marginBottom: 8 }}>معاينة على الهاتف</div>
+          <div className="phone-prev" style={{ overflow: 'hidden' }}><PopupView p={f} preview onClose={() => {}} /></div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ===== محتوى التطبيق: أزرار الواجهة، البانر، النصوص القانونية =====
+const QUICK_OPTS = [['ride', 'كورسة 🚗'], ['delivery', 'توصيل 📦'], ['bus', 'الحافلة 🚌'], ['reels', 'اربح (الإعلانات) 🎁'], ['schedule', 'برمج 📅'], ['student', 'خصم الطالب 🎓'], ['wallet', 'البورتفاي 💳']]
+export function AppContent() {
+  const { settings } = useApp()
+  const [h, setH] = useState(settings.home)
+  const [c, setC] = useState(settings.content)
+  const [ann, setAnn] = useState(settings.announcement || '')
+  const q = h.quick?.length ? h.quick : ['ride', 'delivery', 'bus', 'reels']
+  const setSlot = (i, v) => { const n = [...q]; n[i] = v; setH({ ...h, quick: n }) }
+  const save = async () => { await saveSettings({ home: h, content: c, announcement: ann }, 'تحديث محتوى التطبيق'); toast('تم الحفظ — يتبدّل في كل الهواتف ✅', 'success') }
+  const bn = h.banner || {}
+  return (
+    <div className="grid-main" style={{ marginTop: 0 }}>
+      <div className="col">
+        <div className="panel-card">
+          <h3>أزرار الواجهة الرئيسية<span className="sp" /><button className="btn btn-primary btn-sm" onClick={save}><Save size={16} />حفظ</button></h3>
+          <div className="tiny muted" style={{ marginBottom: 10 }}>الأزرار الأربعة تحت خانة "وين حاب تروح؟" عند الزبون.</div>
+          <div className="form-grid">
+            {[0, 1, 2, 3].map((i) => (
+              <Field key={i} label={`الزر ${i + 1}`}><select className="input" value={q[i] || ''} onChange={(e) => setSlot(i, e.target.value)}>{QUICK_OPTS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></Field>
+            ))}
+          </div>
+        </div>
+        <div className="panel-card">
+          <h3>بانر الواجهة الرئيسية</h3>
+          <label className="between small"><span>إظهار البانر</span><Switch on={!!bn.on} onChange={(v) => setH({ ...h, banner: { ...bn, on: v } })} /></label>
+          <div className="form-grid mt">
+            <Field label="العنوان"><input className="input" value={bn.title || ''} onChange={(e) => setH({ ...h, banner: { ...bn, title: e.target.value } })} placeholder="كورسة المطار بـ 800 دج" /></Field>
+            <Field label="النص الصغير"><input className="input" value={bn.sub || ''} onChange={(e) => setH({ ...h, banner: { ...bn, sub: e.target.value } })} /></Field>
+            <Field label="الرابط" hint="https://… ولا #bus ولا #student"><input className="input" dir="ltr" value={bn.link || ''} onChange={(e) => setH({ ...h, banner: { ...bn, link: e.target.value } })} /></Field>
+            <Field label="لون الخلفية"><input className="input" type="color" value={bn.color || '#7B0E13'} onChange={(e) => setH({ ...h, banner: { ...bn, color: e.target.value } })} style={{ padding: 4 }} /></Field>
+          </div>
+          <div className="flex">
+            <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}><Upload size={16} />صورة البانر<input type="file" accept="image/*" hidden onChange={async (e) => e.target.files[0] && setH({ ...h, banner: { ...bn, image: await compressImage(e.target.files[0], 900, 0.8) } })} /></label>
+            {bn.image && <button className="btn btn-ghost btn-sm" onClick={() => setH({ ...h, banner: { ...bn, image: '' } })}><Trash2 size={15} /></button>}
+          </div>
+          {bn.on && <div className="home-banner mt" style={{ '--bc': bn.color || '#7B0E13', backgroundImage: bn.image ? `url(${bn.image})` : undefined }}><span><b>{bn.title || 'العنوان'}</b><small>{bn.sub}</small></span></div>}
+        </div>
+        <div className="panel-card">
+          <h3>شريط الإعلان</h3>
+          <Field label="نص يظهر أعلى الشاشة الرئيسية للزبائن"><input className="input" value={ann} onChange={(e) => setAnn(e.target.value)} placeholder="مثال: خصم 20% على كل الرحلات اليوم!" /></Field>
+        </div>
+      </div>
+      <div className="col">
+        <div className="panel-card">
+          <h3><FileText size={18} />النصوص القانونية</h3>
+          <Field label="شروط الاستخدام"><textarea className="input" style={{ minHeight: 140 }} value={c.terms || ''} onChange={(e) => setC({ ...c, terms: e.target.value })} placeholder="شروط استعمال وصلني…" /></Field>
+          <Field label="سياسة الخصوصية"><textarea className="input" style={{ minHeight: 140 }} value={c.privacy || ''} onChange={(e) => setC({ ...c, privacy: e.target.value })} /></Field>
+          <Field label="على التطبيق"><textarea className="input" style={{ minHeight: 90 }} value={c.about || ''} onChange={(e) => setC({ ...c, about: e.target.value })} /></Field>
+          <button className="btn btn-primary btn-sm mt" onClick={save}><Save size={16} />حفظ</button>
+        </div>
+      </div>
+    </div>
   )
 }

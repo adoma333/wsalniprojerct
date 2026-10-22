@@ -130,6 +130,8 @@ async function geoPlugin() {
 }
 
 export async function currentPosition() {
+  // إذا عندنا موقع حديث من المتتبّع المشترك نرجعوه في بلاصتو
+  if (lastFix && Date.now() - lastFix.at < 30000) return lastFix
   const g = await geoPlugin()
   if (g) {
     try {
@@ -148,20 +150,35 @@ export async function currentPosition() {
   })
 }
 
-export async function watchPosition(cb) {
+// متتبّع موقع واحد مشترك لكل الشاشات: يوفّر البطارية ويمنع تعارض طلبات الموقع
+let lastFix = null
+const watchers = new Set()
+let stopNative = null, starting = null
+async function startNative() {
+  const push = (fix) => { lastFix = { ...fix, at: Date.now() }; watchers.forEach((f) => { try { f(lastFix) } catch {} }) }
   const g = await geoPlugin()
   if (g) {
-    const id = await g.watchPosition({ enableHighAccuracy: true }, (p) => p && cb({ coords: [p.coords.longitude, p.coords.latitude], heading: p.coords.heading, speed: p.coords.speed }))
+    const id = await g.watchPosition({ enableHighAccuracy: true }, (p) => p && push({ coords: [p.coords.longitude, p.coords.latitude], heading: p.coords.heading, speed: p.coords.speed, accuracy: p.coords.accuracy }))
     return () => g.clearWatch({ id })
   }
   if (!navigator.geolocation) return () => {}
   const id = navigator.geolocation.watchPosition(
-    (p) => cb({ coords: [p.coords.longitude, p.coords.latitude], heading: p.coords.heading, speed: p.coords.speed }),
+    (p) => push({ coords: [p.coords.longitude, p.coords.latitude], heading: p.coords.heading, speed: p.coords.speed, accuracy: p.coords.accuracy }),
     () => {},
     { enableHighAccuracy: true, maximumAge: 5000 },
   )
   return () => navigator.geolocation.clearWatch(id)
 }
+export async function watchPosition(cb) {
+  watchers.add(cb)
+  if (lastFix) setTimeout(() => watchers.has(cb) && cb(lastFix), 0)
+  if (!stopNative && !starting) starting = startNative().then((s) => { stopNative = s; starting = null })
+  return () => {
+    watchers.delete(cb)
+    if (!watchers.size) setTimeout(() => { if (!watchers.size && stopNative) { stopNative(); stopNative = null } }, 3000)
+  }
+}
+export const lastPosition = () => lastFix
 
 export { offsetPoint }
 export const mapsLink = (c) => `https://www.google.com/maps/dir/?api=1&destination=${c[1]},${c[0]}&travelmode=driving`

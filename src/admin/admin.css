@@ -97,3 +97,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 
 .calc { background: var(--card-2); border-radius: 18px; padding: 16px; border: 1px solid var(--line); }
 .range { width: 100%; accent-color: var(--brand); }
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; animation: pd 1.6s infinite; box-shadow: 0 0 0 0 rgba(18,183,106,.6); }
+.line-badge { min-width: 34px; height: 30px; padding: 0 8px; border-radius: 10px; background: var(--lc); color: #fff; font-weight: 800; display: inline-grid; place-items: center; flex-shrink: 0; }
+.home-banner { display: flex; align-items: flex-end; min-height: 110px; padding: 14px; border-radius: 18px; color: #fff; background: linear-gradient(135deg, var(--bc), #18120e); background-size: cover; background-position: center; position: relative; overflow: hidden; }
+.home-banner::before { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 30%, rgba(0,0,0,.6)); }
+.home-banner span { position: relative; } .home-banner b { display: block; font-size: 17px; } .home-banner small { opacity: .9; }

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import {
   LayoutDashboard, Car, Users, UserRound, Tags, Clapperboard, Ticket, CreditCard, Bell, LifeBuoy, Settings, LogOut, Menu, Moon, Sun, Lock, Mail,
-  Eye, EyeOff, ShieldCheck, Database, ExternalLink, Gift, Radio, MapPinned, Wallet, GraduationCap, ToggleRight, History, Banknote, Volume2, VolumeX,
+  Eye, EyeOff, ShieldCheck, Database, ExternalLink, Gift, Radio, MapPinned, Wallet, GraduationCap, ToggleRight, History, Banknote, Volume2, VolumeX, Bus as BusIco, MonitorSmartphone, FileText,
 } from 'lucide-react'
 import { useBoot, AppProvider } from '@/ui/app-ctx.jsx'
 import { Toasts, toast, Avatar } from '@/ui/kit.jsx'
@@ -21,12 +21,12 @@ export const useData = () => useContext(DataCtx)
 
 const NAV = [
   ['الرئيسية', [['overview', 'نظرة عامة', LayoutDashboard], ['live', 'الخريطة الحية', Radio], ['rides', 'الرحلات', Car], ['drivers', 'السائقون', UserRound], ['riders', 'الزبائن', Users]]],
-  ['العمليات', [['wilayas', 'الولايات والمناطق', MapPinned], ['payments', 'المدفوعات والشحن', Wallet], ['driverwallet', 'محفظة السائقين', Banknote], ['students', 'الطلبة', GraduationCap]]],
+  ['العمليات', [['wilayas', 'الولايات والمناطق', MapPinned], ['bus', 'خطوط الحافلات', BusIco], ['payments', 'المدفوعات والشحن', Wallet], ['driverwallet', 'محفظة السائقين', Banknote], ['students', 'الطلبة', GraduationCap]]],
   ['الإيرادات والنمو', [['pricing', 'التسعير', Tags], ['reels', 'الإعلانات (الريلز)', Clapperboard], ['rewards', 'النقاط والمكافآت', Gift], ['promos', 'أكواد الخصم', Ticket], ['vouchers', 'قسائم الشحن', CreditCard]]],
-  ['التواصل', [['notifications', 'الإشعارات', Bell], ['support', 'الدعم والطوارئ', LifeBuoy]]],
-  ['النظام', [['system', 'الميزات والصيانة', ToggleRight], ['audit', 'سجل العمليات', History], ['settings', 'الإعدادات', Settings]]],
+  ['التواصل', [['popups', 'نوافذ الإشعار', MonitorSmartphone], ['notifications', 'الإشعارات', Bell], ['support', 'الدعم والطوارئ', LifeBuoy]]],
+  ['النظام', [['content', 'محتوى التطبيق', FileText], ['system', 'الميزات والصيانة', ToggleRight], ['audit', 'سجل العمليات', History], ['settings', 'الإعدادات', Settings]]],
 ]
-const PAGES = { overview: A.Overview, rides: A.Rides, drivers: A.Drivers, riders: A.Riders, pricing: B.Pricing, reels: B.ReelsAdmin, rewards: B.RewardsAdmin, promos: B.Promos, vouchers: B.Vouchers, notifications: B.NotificationsAdmin, support: B.SupportAdmin, settings: B.SettingsAdmin, live: C.LiveMap, wilayas: C.Wilayas, payments: C.Payments, students: C.Students, system: C.SystemAdmin, audit: C.AuditLog, driverwallet: C.DriverWallet }
+const PAGES = { overview: A.Overview, rides: A.Rides, drivers: A.Drivers, riders: A.Riders, pricing: B.Pricing, reels: B.ReelsAdmin, rewards: B.RewardsAdmin, promos: B.Promos, vouchers: B.Vouchers, notifications: B.NotificationsAdmin, support: B.SupportAdmin, settings: B.SettingsAdmin, live: C.LiveMap, wilayas: C.Wilayas, payments: C.Payments, students: C.Students, system: C.SystemAdmin, audit: C.AuditLog, driverwallet: C.DriverWallet, bus: C.BusLines, popups: C.Popups, content: C.AppContent }
 
 export default function App() {
   const [st] = useBoot('admin')
