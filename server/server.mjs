@@ -357,6 +357,8 @@ function openStream(req, res, a) {
   const sid = tok()
   const st = { res, a, subs: new Map() }
   streams.set(sid, st)
+  // حشو أولي باش البروكسيات (نفق Cloudflare…) ما تخبّيش البث
+  res.write(':' + ' '.repeat(4096) + '\n\n')
   res.write(`retry: 2000\nevent: hello\ndata: ${JSON.stringify({ sid })}\n\n`)
   const ping = setInterval(() => res.write(': ping\n\n'), 20000)
   req.on('close', () => {
@@ -444,6 +446,16 @@ const server = http.createServer(async (req, res) => {
       case '/db/query': {
         if (!validCol(b.col)) throw new HttpErr(400, 'bad col')
         return json(res, 200, { rows: runQuery(a, b.col, b.q || {}) })
+      }
+      // عدة قراءات في طلب واحد (بديل البث اللحظي كي يكون مقطوع)
+      case '/db/batch': {
+        const items = Array.isArray(b.items) ? b.items.slice(0, 200) : []
+        return json(res, 200, { results: items.map((it) => {
+          try {
+            if (it.path) return validPath(it.path) ? snapDoc(a, it.path) : null
+            return validCol(it.col) ? runQuery(a, it.col, it.q || {}) : []
+          } catch { return null }
+        }) })
       }
       case '/db/sub': addSub(a, b); return json(res, 200, { ok: true })
       case '/db/unsub': delSub(a, b); return json(res, 200, { ok: true })

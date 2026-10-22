@@ -66,12 +66,24 @@ const deliver = (s, v) => {
 }
 const fetchSub = (s) => (s.params.path ? call('/db/get', { path: s.params.path }).then((r) => r.doc) : call('/db/query', { col: s.params.col, q: s.params.q }).then((r) => r.rows))
   .then((v) => { if (subs.get(JSON.stringify(s.params)) === s) deliver(s, v ?? null) }).catch(() => {})
-// إذا البث ما خدمش (بروكسي، شبكة ضعيفة…) نحدّثو كل 4 ثواني عبر HTTP
-setInterval(() => {
-  if (!subs.size) return
+// إذا البث ما خدمش (بروكسي، شبكة ضعيفة…) نحدّثو كل 3 ثواني بطلب واحد يجمع كل الاشتراكات
+let polling = false
+setInterval(async () => {
+  if (!subs.size || polling || document.visibilityState === 'hidden') return
   const live = es && es.readyState === 1 && sid
-  if (!live) { subs.forEach(fetchSub); if (!es || es.readyState === 2) connect() }
-}, 4000)
+  if (live) return
+  if (!es || es.readyState === 2) connect()
+  polling = true
+  const list = [...subs.values()]
+  try {
+    const r = await call('/db/batch', { items: list.map((x) => x.params) })
+    list.forEach((x, i) => { if (subs.get(JSON.stringify(x.params)) === x) deliver(x, r.results?.[i] ?? null) })
+  } catch (e) {
+    // خادم قديم بلا /db/batch ولا خطأ آخر: نجيبو كل اشتراك وحدو
+    await Promise.all(list.map(fetchSub))
+  }
+  polling = false
+}, 3000)
 function subscribe(params, cb) {
   const key = JSON.stringify(params)
   let s = subs.get(key)
