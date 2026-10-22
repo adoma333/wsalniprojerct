@@ -1,3 +1,4 @@
+import { play } from '@/core/sound.js'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Music2, BadgeCheck, ChevronLeft, Pause, Volume2, VolumeX, Check, Eye, Sparkles, ChevronsUp } from 'lucide-react'
 import { useNav, toast, Confetti } from '@/ui/kit.jsx'
@@ -61,7 +62,7 @@ export default function Reels({ start }) {
     if (views[reel.id]) return
     if (left <= 0) { toast(tr('كمّلت الحد تاع اليوم، ارجع غدوة 🌙', 'Daily limit reached'), '', null, 3200); return }
     const r = await claimReel(uid, reel, settings.rewards)
-    if (r.ok) { haptic('heavy'); setConfetti((x) => x + 1) }
+    if (r.ok) { haptic('heavy'); play('coin'); setConfetti((x) => x + 1) }
     else if (r.reason === 'limit') toast(tr('كمّلت الحد تاع اليوم', 'Daily limit reached'))
   }
 

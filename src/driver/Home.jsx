@@ -10,7 +10,8 @@ import DragPanel from '@/ui/DragPanel.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
 import { useNav, Drawer, DrawerItem, Avatar, Sheet, Stars, toast } from '@/ui/kit.jsx'
 import { ClassCar, Coin } from '@/ui/art.jsx'
-import { RouteSummary } from '@/ui/ride-ui.jsx'
+import { RouteSummary, useChatAlerts, useBroadcastAlerts } from '@/ui/ride-ui.jsx'
+import { play } from '@/core/sound.js'
 import { tr, money, mins, km, haversine, haptic, offsetPoint, along, pick, num } from '@/core/util.js'
 import { CITIES } from '@/core/config.js'
 import { currentPosition, watchPosition, route, reverse, mapsLink } from '@/core/geo.js'
@@ -151,6 +152,16 @@ export default function Home() {
     return () => clearTimeout(t)
   }, [request?.id, ride?.id, ride?.status])
 
+  // أصوات: رسائل الزبون، إشعارات الإدارة، وإلغاء الزبون
+  useChatAlerts(ride && ACTIVE.includes(ride.status) && !ride.simulated ? ride.id : null, 'driver', ride?.riderName)
+  useBroadcastAlerts('drivers')
+  const prevSt = useRef(null)
+  useEffect(() => {
+    const cur = rides[0]
+    if (cur && prevSt.current && prevSt.current.id === cur.id && prevSt.current.status !== cur.status && cur.status === 'cancelled' && cur.cancelledBy !== 'driver') toast(tr('الزبون لغا الكورسة', 'The rider cancelled the trip'), 'error')
+    prevSt.current = cur ? { id: cur.id, status: cur.status } : null
+  }, [rides[0]?.id, rides[0]?.status])
+
   // ===== التحكم =====
   const toggleOnline = async () => {
     haptic('medium')
@@ -278,7 +289,7 @@ export default function Home() {
 // تحديات اليوم: كل ما توصل لعدد كورسات تاخذ مكافأة في البورتفاي
 function Quests({ list, trips, done, day, uid }) {
   useEffect(() => {
-    list.forEach((q, i) => { if (trips >= q.trips && !done.includes(`${day}:${i}`)) claimQuest(uid, day, i, q.bonus, q.trips).then((ok) => ok && toast(tr(`🏆 ربحت ${money(q.bonus)} مكافأة!`, `🏆 You earned a ${money(q.bonus)} bonus!`), 'success')) })
+    list.forEach((q, i) => { if (trips >= q.trips && !done.includes(`${day}:${i}`)) claimQuest(uid, day, i, q.bonus, q.trips).then((ok) => ok && toast(tr(`🏆 ربحت ${money(q.bonus)} مكافأة!`, `🏆 You earned a ${money(q.bonus)} bonus!`), 'success', null, 3500, 'coin')) })
   }, [trips, list.length])
   if (!list.length) return null
   const next = list.findIndex((q, i) => !done.includes(`${day}:${i}`) && trips < q.trips)
@@ -321,7 +332,7 @@ function RequestCard({ req, me, settings, onAccept, onDecline }) {
   const [busy, setBusy] = useState(false)
   useEffect(() => {
     haptic('heavy')
-    chime()
+    play('request')
     const t = setInterval(() => setLeft((l) => { if (l <= 1) { clearInterval(t); onDecline(); return 0 } return l - 1 }), 1000)
     return () => clearInterval(t)
   }, [])
@@ -507,17 +518,3 @@ function DriverDrawer({ open, onClose, driver, nav, online }) {
   )
 }
 
-// نغمة تنبيه للطلب الجديد
-function chime() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    ;[880, 1175, 1568].forEach((f, i) => {
-      const o = ctx.createOscillator(), g = ctx.createGain()
-      o.type = 'sine'; o.frequency.value = f
-      g.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.16)
-      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + i * 0.16 + 0.02)
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.16 + 0.4)
-      o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + i * 0.16); o.stop(ctx.currentTime + i * 0.16 + 0.45)
-    })
-  } catch {}
-}

@@ -1,9 +1,10 @@
 // مكونات مشتركة بين تطبيق الزبون والسائق
 import React, { useEffect, useRef, useState } from 'react'
 import { Send, Phone } from 'lucide-react'
-import { Page, Avatar } from './kit.jsx'
+import { Page, Avatar, toast } from './kit.jsx'
+import { play } from '@/core/sound.js'
 import { tr, dateTime } from '@/core/util.js'
-import { watchMessages, sendMessage, watchRide } from '@/core/api.js'
+import { watchMessages, sendMessage, watchRide, watchNotifications } from '@/core/api.js'
 
 export function Plate({ value = '' }) {
   return <span className="plate"><i>الجزائر<br />DZ</i><span>{value}</span></span>
@@ -45,6 +46,15 @@ export function ChatPage({ rideId, me }) {
   const end = useRef(null)
   useEffect(() => watchMessages(rideId, setMsgs), [rideId])
   useEffect(() => watchRide(rideId, setRide), [rideId])
+  // الدردشة مفتوحة: الإشعار العام يسكت، ونسمعو غير صوت الرسالة
+  useEffect(() => { window.__chatOpen = rideId; return () => { if (window.__chatOpen === rideId) window.__chatOpen = null } }, [rideId])
+  const seen = useRef(null)
+  useEffect(() => {
+    if (seen.current === null) { seen.current = msgs.length; return }
+    const fresh = msgs.slice(seen.current).filter((m) => m.from !== me)
+    seen.current = msgs.length
+    if (fresh.length) play('message')
+  }, [msgs.length])
   useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs.length])
   const send = async (t) => {
     t = (t ?? text).trim()
@@ -81,4 +91,33 @@ export function ChatPage({ rideId, me }) {
       </div>
     </Page>
   )
+}
+
+// رسائل الدردشة الجديدة خارج صفحة الدردشة: صوت + إشعار منبثق
+export function useChatAlerts(rideId, me, otherName) {
+  useEffect(() => {
+    if (!rideId) return
+    let first = true, count = 0
+    return watchMessages(rideId, (msgs) => {
+      if (first) { first = false; count = msgs.length; return }
+      const fresh = msgs.slice(count).filter((m) => m.from !== me)
+      count = msgs.length
+      if (fresh.length && window.__chatOpen !== rideId) toast(`💬 ${otherName || tr('رسالة جديدة', 'New message')}: ${fresh[fresh.length - 1].text}`, 'brand', null, 4000, 'message')
+    })
+  }, [rideId])
+}
+// إشعارات الإدارة الجديدة (تصل وقت التطبيق مفتوح): صوت + إشعار منبثق
+export function useBroadcastAlerts(audience) {
+  useEffect(() => {
+    const t0 = Date.now()
+    const shown = new Set()
+    return watchNotifications((list) => {
+      for (const n of list) {
+        if (n.at < t0 || shown.has(n.id)) continue
+        if (n.target && n.target !== 'all' && n.target !== audience) continue
+        shown.add(n.id)
+        toast(`🔔 ${n.title}${n.body ? ' — ' + n.body : ''}`, 'brand', null, 5000, 'notify')
+      }
+    })
+  }, [])
 }

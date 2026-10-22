@@ -1,10 +1,15 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { ArrowLeft, ChevronLeft, Star, Inbox } from 'lucide-react'
 import { initials, tr } from '@/core/util.js'
+import { play, soundFor } from '@/core/sound.js'
 
 // ===== الإشعارات المنبثقة =====
 let pushToast = () => {}
-export function toast(text, type = '', icon = null, ms = 2600) { pushToast({ text, type, icon, ms }) }
+// كل إشعار منبثق يجي بصوت حسب نوعه (sound: false لإسكاته، أو اسم صوت محدد)
+export function toast(text, type = '', icon = null, ms = 2600, sound) {
+  if (sound !== false) play(sound || soundFor(type))
+  pushToast({ text, type, icon, ms })
+}
 export function Toasts() {
   const [list, setList] = useState([])
   useEffect(() => {

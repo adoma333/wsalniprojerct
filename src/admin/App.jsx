@@ -1,15 +1,16 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import {
   LayoutDashboard, Car, Users, UserRound, Tags, Clapperboard, Ticket, CreditCard, Bell, LifeBuoy, Settings, LogOut, Menu, Moon, Sun, Lock, Mail,
-  Eye, EyeOff, ShieldCheck, Database, ExternalLink, Gift, Radio, MapPinned, Wallet, GraduationCap, ToggleRight, History, Banknote,
+  Eye, EyeOff, ShieldCheck, Database, ExternalLink, Gift, Radio, MapPinned, Wallet, GraduationCap, ToggleRight, History, Banknote, Volume2, VolumeX,
 } from 'lucide-react'
 import { useBoot, AppProvider } from '@/ui/app-ctx.jsx'
 import { Toasts, toast, Avatar } from '@/ui/kit.jsx'
 import { BRAND } from '@/core/config.js'
 import { MODE } from '@/core/store.js'
+import { soundOn, setSound } from '@/core/sound.js'
 import { setTheme, isDark } from '@/core/util.js'
 import {
-  watchAllRides, watchAllDrivers, watchUsers, watchTickets, watchSos, watchAllReels, watchReelStats, watchPromos, watchVouchers, watchNotifications, auth,
+  watchAllRides, watchAllDrivers, watchUsers, watchTickets, watchSos, watchAllReels, watchReelStats, watchPromos, watchVouchers, watchNotifications, watchTopups, watchWithdrawals, auth,
 } from '@/core/api.js'
 import * as A from './pages-a.jsx'
 import * as B from './pages-b.jsx'
@@ -95,17 +96,43 @@ function Login({ status, onIn }) {
 }
 
 function useLive() {
-  const [d, setD] = useState({ rides: [], drivers: [], users: [], tickets: [], sos: [], reels: [], reelStats: [], promos: [], vouchers: [], notifications: [] })
+  const [d, setD] = useState({ rides: [], drivers: [], users: [], tickets: [], sos: [], reels: [], reelStats: [], promos: [], vouchers: [], notifications: [], topups: [], withdrawals: [] })
   useEffect(() => {
     const set = (k) => (v) => setD((s) => ({ ...s, [k]: v }))
-    const subs = [watchAllRides(set('rides'), 800), watchAllDrivers(set('drivers')), watchUsers(set('users')), watchTickets(set('tickets')), watchSos(set('sos')), watchAllReels(set('reels')), watchReelStats(set('reelStats')), watchPromos(set('promos')), watchVouchers(set('vouchers')), watchNotifications(set('notifications'))]
+    const subs = [watchAllRides(set('rides'), 800), watchAllDrivers(set('drivers')), watchUsers(set('users')), watchTickets(set('tickets')), watchSos(set('sos')), watchAllReels(set('reels')), watchReelStats(set('reelStats')), watchPromos(set('promos')), watchVouchers(set('vouchers')), watchNotifications(set('notifications')), watchTopups(set('topups')), watchWithdrawals(set('withdrawals'))]
     return () => subs.forEach((u) => u?.())
   }, [])
   return d
 }
 
+// أصوات لوحة التحكم: كل حدث جديد يحتاج انتباه المدير
+const ALERTS = [
+  ['sos', (x) => !x.handled, (x) => `🚨 طوارئ من ${x.name || ''} (${x.kind === 'driver' ? 'سائق' : 'زبون'})`, 'error', 'request'],
+  ['tickets', (x) => x.status !== 'closed', (x) => `🎧 تذكرة دعم جديدة: ${x.subject || x.text || ''}`.slice(0, 120), 'brand', 'notify'],
+  ['drivers', (x) => x.status === 'pending', (x) => `🧑‍✈️ سائق جديد ينتظر الموافقة: ${x.name}`, 'brand', 'notify'],
+  ['topups', (x) => x.status === 'pending', (x) => `💳 طلب شحن ${x.amount} دج بانتظار المراجعة`, 'brand', 'coin'],
+  ['withdrawals', (x) => x.status === 'pending', (x) => `🏦 طلب سحب ${x.amount} دج من ${x.name || 'سائق'}`, 'brand', 'coin'],
+  ['users', () => true, (x) => `👋 زبون جديد: ${x.name || ''}`, 'success', 'info'],
+  ['rides', (x) => x.status === 'searching' && !x.simulated, (x) => `🚗 طلب كورسة جديد: ${x.pickup?.title || ''} ← ${x.dropoff?.title || ''}`, '', 'info'],
+]
+function useAdminAlerts(data) {
+  const seen = useRef(null)
+  useEffect(() => {
+    const now = Object.fromEntries(ALERTS.map(([k]) => [k, new Set((data[k] || []).map((x) => x.id))]))
+    if (!seen.current) { seen.current = { ...now, ready: Date.now() }; return }
+    // نتجاهل أول ثواني التحميل (البيانات تصل على دفعات)
+    if (Date.now() - seen.current.ready < 4000) { seen.current = { ...now, ready: seen.current.ready }; return }
+    for (const [k, cond, msg, type, snd] of ALERTS) {
+      for (const x of data[k] || []) if (!seen.current[k].has(x.id) && cond(x)) toast(msg(x), type, null, 5000, snd)
+      seen.current[k] = now[k]
+    }
+  }, ALERTS.map(([k]) => data[k]))
+}
+
 function Shell({ onOut }) {
   const data = useLive()
+  useAdminAlerts(data)
+  const [snd, setSnd] = useState(soundOn())
   const [page, setPage] = useState(() => location.hash.slice(1) || 'overview')
   const [open, setOpen] = useState(false)
   const [dark, setDark] = useState(isDark())
@@ -148,6 +175,7 @@ function Shell({ onOut }) {
             <button className="icon-btn sm flat burger" onClick={() => setOpen(true)}><Menu size={20} /></button>
             <h1>{title}</h1>
             <span className={`badge hide-m ${MODE !== 'local' ? 'green' : 'yellow'}`}><Database size={12} />{MODE === 'server' ? 'متصل مباشر (SQLite)' : MODE === 'firebase' ? 'Firebase مباشر' : 'وضع العرض المحلي'}</span>
+            <button className="icon-btn sm flat" title="الأصوات" onClick={() => { setSound(!snd); setSnd(!snd) }}>{snd ? <Volume2 size={18} /> : <VolumeX size={18} />}</button>
             <button className="icon-btn sm flat" onClick={() => { const n = !dark; setDark(n); setTheme(n ? 'dark' : 'light') }}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
           </div>
           <div className="adm-body" key={page}><div className="rise"><C /></div></div>

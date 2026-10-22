@@ -74,7 +74,7 @@ export default function Rewards() {
       {points < (rw.minConvert || 0) && <div className="tiny muted center" style={{ marginTop: 6 }}>{tr(`أقل تحويل ${num(rw.minConvert)} نقطة`, `Minimum ${num(rw.minConvert)} pts`)}</div>}
       <ConvertSheet open={conv} onClose={() => setConv(false)} points={points} rw={rw} onDone={async (p) => {
         const r = await convertPoints(uid, rw, p)
-        if (r.ok) { setConv(false); setFire((x) => x + 1); toast(tr(`تحوّلو ${num(r.points)} نقطة ← ${money(r.da)} في البورتفاي`, `${num(r.points)} pts → ${money(r.da)}`), 'success', <Wallet size={18} />, 3500) }
+        if (r.ok) { setConv(false); setFire((x) => x + 1); toast(tr(`تحوّلو ${num(r.points)} نقطة ← ${money(r.da)} في البورتفاي`, `${num(r.points)} pts → ${money(r.da)}`), 'success', <Wallet size={18} />, 3500, 'coin') }
         else toast(tr('ما قدرناش نحوّلو، عاود', 'Could not convert'), 'error')
       }} />
 

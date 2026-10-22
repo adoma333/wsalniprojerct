@@ -10,7 +10,7 @@ import DragPanel from '@/ui/DragPanel.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
 import { useNav, Drawer, DrawerItem, Avatar, Sheet, Stars, toast, Confetti } from '@/ui/kit.jsx'
 import { ClassCar, Coin } from '@/ui/art.jsx'
-import { Plate, RouteSummary } from '@/ui/ride-ui.jsx'
+import { Plate, RouteSummary, useChatAlerts, useBroadcastAlerts } from '@/ui/ride-ui.jsx'
 import { tr, isAr, money, num, mins, km, haversine, greeting, shareLink, haptic, timeAgo } from '@/core/util.js'
 import { CITIES, SITE_URL, daToPoints } from '@/core/config.js'
 import { currentPosition, reverse, route, weather } from '@/core/geo.js'
@@ -79,6 +79,10 @@ export default function Home() {
     if (ride.status === 'completed' && !ride.charged) settleRide(uid, ride).catch(() => {})
   }, [ride?.id, ride?.status, settings.fleetSimulation])
 
+  // أصوات: رسائل السائق وإشعارات الإدارة
+  useChatAlerts(ride && ACTIVE.includes(ride.status) ? ride.id : null, 'rider', ride?.driver?.name)
+  useBroadcastAlerts('riders')
+
   // مرآة عامة للكورسة (لشخص آخر) باش يتبّعها من الرابط بلا تطبيق
   const shared = rides.find((x) => x.shareKey && Date.now() - (x.createdAt || 0) < 6 * 3600e3)
   const shareSig = shared && `${shared.status}|${shared.driverLoc?.coords?.join()}|${shared.driver?.name}|${Math.round((shared.progress || 0) * 50)}`
@@ -102,7 +106,8 @@ export default function Home() {
       haptic('medium')
       if (s === 'accepted') toast(tr(`${ride.driver?.name} قبل طلبك 🚗`, `${ride.driver?.name} accepted 🚗`), 'success')
       if (s === 'arrived') toast(tr('الشيفور وصل لبلاصتك 📍', 'Your driver has arrived 📍'), 'brand')
-      if (s === 'ongoing') toast(tr('الكورسة بدات، طريق السلامة ✨', 'Trip started ✨'))
+      if (s === 'ongoing') toast(tr('الكورسة بدات، طريق السلامة ✨', 'Trip started ✨'), 'brand')
+      if (s === 'completed') toast(tr('وصلت بالسلامة 🎉', 'You have arrived 🎉'), 'success')
       if (s === 'cancelled' && ride.cancelledBy === 'driver') toast(tr('الشيفور لغا الكورسة، راناحوّسو على واحد آخر', 'Driver cancelled'), 'error')
     }
     prevStatus.current = s

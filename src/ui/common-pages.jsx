@@ -1,7 +1,8 @@
 // صفحات مشتركة بين التطبيقين: الإشعارات، الدعم، الإعدادات، عن التطبيق
 import React, { useEffect, useState } from 'react'
-import { Bell, MessageCircle, Phone, Mail, ChevronDown, Moon, Sun, Monitor, Languages, Info, Shield, FileText, Send, Headphones } from 'lucide-react'
-import { Page, Empty, Row, Sheet, toast } from './kit.jsx'
+import { Bell, MessageCircle, Phone, Mail, ChevronDown, Moon, Sun, Monitor, Languages, Info, Shield, FileText, Send, Headphones, Volume2, VolumeX } from 'lucide-react'
+import { Page, Empty, Row, Sheet, toast, Switch } from './kit.jsx'
+import { soundOn, setSound } from '@/core/sound.js'
 import { useApp } from './app-ctx.jsx'
 import { tr, timeAgo, setLang, LANG, getTheme, setTheme, dateTime } from '@/core/util.js'
 import { watchNotifications, createTicket, watchMyTickets } from '@/core/api.js'
@@ -99,6 +100,7 @@ export function Settings({ extra }) {
   const [theme, setT] = useState(getTheme())
   const [langOpen, setLangOpen] = useState(false)
   const pickTheme = (t) => { setT(t); setTheme(t) }
+  const [snd, setSnd] = useState(soundOn())
   return (
     <Page title={tr('الإعدادات', 'Settings')}>
       <div className="section-title">{tr('الشكل', 'Appearance')}</div>
@@ -110,6 +112,7 @@ export function Settings({ extra }) {
       <div className="section-title">{tr('عام', 'General')}</div>
       <div className="list">
         <Row icon={<Languages size={19} />} color="#0f172a" title={tr('اللغة', 'Language')} sub={LANG === 'ar' ? 'العربية' : 'English'} onClick={() => setLangOpen(true)} />
+        <Row icon={snd ? <Volume2 size={19} /> : <VolumeX size={19} />} color="#E8650A" title={tr('أصوات الإشعارات', 'Notification sounds')} sub={snd ? tr('مفعّلة', 'On') : tr('مطفية', 'Off')} chevron={false} right={<Switch on={snd} onChange={(v) => { setSound(v); setSnd(v) }} />} />
         {extra}
         <Row icon={<Shield size={19} />} color="#12B76A" title={tr('الخصوصية والأمان', 'Privacy & security')} sub={tr('بياناتك مشفرة ولا تُباع', 'Your data is encrypted')} />
         <Row icon={<FileText size={19} />} color="#64748b" title={tr('الشروط والأحكام', 'Terms')} />

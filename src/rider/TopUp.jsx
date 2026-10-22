@@ -1,4 +1,5 @@
 // شحن البورتفاي: البطاقة الذهبية (بريد الجزائر) • CIB (ساتيم) • بريدي موب • كارطة شحن
+import { play } from '@/core/sound.js'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { CreditCard, Landmark, Smartphone, Ticket, ShieldCheck, Lock, Check, ChevronLeft, Copy, Upload, Clock, Wifi, Receipt, Info } from 'lucide-react'
 import { Page, useNav, toast, Confetti } from '@/ui/kit.jsx'
@@ -209,8 +210,8 @@ function OtpStep({ amount, method, last4, otp, setOtp, demo, busy }) {
 
 function Done({ result, method }) {
   const [fire, setFire] = useState(false)
-  useEffect(() => { setTimeout(() => setFire(true), 200) }, [])
   const paid = result?.status === 'paid'
+  useEffect(() => { setTimeout(() => setFire(true), 200); play(paid ? 'coin' : 'info') }, [])
   return (
     <div className="center rise" style={{ paddingTop: 20 }}>
       {paid && <Confetti run={fire} />}
