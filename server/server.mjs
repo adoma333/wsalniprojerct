@@ -112,7 +112,14 @@ function checkPw(email, pw) {
 }
 
 // ===== قواعد الأمان (نفس منطق firestore.rules) =====
-const settings = () => readDoc('settings/app')?.data || {}
+// نفس القيم الافتراضية في src/core/config.js (قبل ما يحفظ المدير أي إعداد)
+const DEFAULTS = { autoApproveDrivers: true, kyc: { autoVerify: true }, students: { autoVerify: true }, payments: { demo: true, max: 50000 }, rewards: { pointValue: 5 } }
+const settings = () => {
+  const s = readDoc('settings/app')?.data || {}
+  const out = { ...DEFAULTS, ...s }
+  for (const k of ['kyc', 'students', 'payments', 'rewards']) out[k] = { ...DEFAULTS[k], ...(s[k] || {}) }
+  return out
+}
 const n = (x) => Number(x) || 0
 function canRead(a, path, d, mode) {
   if (a.role === 'admin') return true
