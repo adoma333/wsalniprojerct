@@ -23,10 +23,13 @@ export default function App() {
   const [driver, setDriver] = useState(undefined)
   const [editing, setEditing] = useState(false)
   useEffect(() => { if (st.uid) return watchDriver(st.uid, (d) => setDriver(d && !d.deleted ? d : null)) }, [st.uid])
-  const ready = st.ready && (st.error || driver !== undefined)
+  const [slow, setSlow] = useState(false)
+  useEffect(() => { if (!st.ready || driver !== undefined) return; const t = setTimeout(() => setSlow(true), 12000); return () => clearTimeout(t) }, [st.ready, driver === undefined])
+  const ready = st.ready && (st.error || driver !== undefined || slow)
   const ctx = { ...st, driver, user: driver, kind: 'driver' }
   let body = null
-  if (ready && !st.error) {
+  if (ready && !st.error && slow && driver === undefined) body = <div className="empty" style={{ paddingTop: 120 }}><b>{tr('الاتصال بالخادم ضعيف', 'Slow connection')}</b><div className="small">{tr('تحقق من الأنترنت وعاود', 'Check your internet and retry')}</div><button className="btn btn-primary mt" onClick={() => location.reload()}>{tr('عاود', 'Retry')}</button></div>
+  else if (ready && !st.error) {
     if (st.settings.maintenance?.on) body = <Maintenance message={st.settings.maintenance.message} support={st.settings.support} />
     else if (!driver || editing) body = <Register uid={st.uid} existing={driver} autoApprove={st.settings.autoApproveDrivers || st.settings.kyc?.autoVerify} onDone={() => setEditing(false)} />
     else if (driver.status === 'pending') body = <Status icon={<Clock size={44} />} color="var(--warning)" title={tr('الطلب تاعك راهو يتراجع', 'Under review')} sub={tr('نراجع مستنداتك دروك. ستصلك الموافقة خلال 24 ساعة كحد أقصى.', 'We are reviewing your documents.')} onEdit={() => setEditing(true)} />

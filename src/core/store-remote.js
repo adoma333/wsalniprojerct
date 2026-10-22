@@ -15,7 +15,10 @@ export function setKind(k) { KIND = k || 'rider' }
 async function call(path, body) {
   let r
   try {
-    r = await fetch(API + path, { method: 'POST', headers: { 'content-type': 'application/json', ...(getTok() ? { authorization: 'Bearer ' + getTok() } : {}) }, body: JSON.stringify(body || {}) })
+    // مهلة قصوى باش التطبيق ما يبقاش يستنى للأبد إذا الخادم ما جاوبش
+    const ac = new AbortController()
+    const to = setTimeout(() => ac.abort(), 15000)
+    r = await fetch(API + path, { method: 'POST', signal: ac.signal, headers: { 'content-type': 'application/json', ...(getTok() ? { authorization: 'Bearer ' + getTok() } : {}) }, body: JSON.stringify(body || {}) }).finally(() => clearTimeout(to))
   } catch {
     throw Object.assign(new Error('ما قدرناش نتصلو بالخادم، تحقق من الأنترنت'), { code: 0 })
   }
@@ -47,18 +50,28 @@ function connect() {
   es.onmessage = (e) => {
     let m
     try { m = JSON.parse(e.data) } catch { return }
-    for (const s of subs.values()) {
-      if (s.id !== m.s) continue
-      const v = Array.isArray(m.d) ? m.d.map(strip) : strip(m.d)
-      s.last = v
-      s.cbs.forEach((f) => { try { f(v) } catch (err) { console.error(err) } })
-    }
+    for (const s of subs.values()) if (s.id === m.s) deliver(s, m.d)
   }
 }
 function sendSub(s) {
   if (!sid) return
   call('/db/sub', { sid, sub: s.id, ...s.params }).catch((e) => { if (e.code === 410) connect() })
 }
+// جلب مباشر عبر HTTP: القيمة الأولى تصل حتى قبل ما يتفتح اتصال البث، وبديل إذا البث مقطوع
+const deliver = (s, v) => {
+  v = Array.isArray(v) ? v.map(strip) : strip(v)
+  if (JSON.stringify(v) === JSON.stringify(s.last)) return
+  s.last = v
+  s.cbs.forEach((f) => { try { f(v) } catch (err) { console.error(err) } })
+}
+const fetchSub = (s) => (s.params.path ? call('/db/get', { path: s.params.path }).then((r) => r.doc) : call('/db/query', { col: s.params.col, q: s.params.q }).then((r) => r.rows))
+  .then((v) => { if (subs.get(JSON.stringify(s.params)) === s) deliver(s, v ?? null) }).catch(() => {})
+// إذا البث ما خدمش (بروكسي، شبكة ضعيفة…) نحدّثو كل 4 ثواني عبر HTTP
+setInterval(() => {
+  if (!subs.size) return
+  const live = es && es.readyState === 1 && sid
+  if (!live) { subs.forEach(fetchSub); if (!es || es.readyState === 2) connect() }
+}, 4000)
 function subscribe(params, cb) {
   const key = JSON.stringify(params)
   let s = subs.get(key)
@@ -66,6 +79,7 @@ function subscribe(params, cb) {
     s = { id: 's' + ++seq, params, cbs: new Set(), last: undefined }
     subs.set(key, s)
     if (!es) connect(); else sendSub(s)
+    fetchSub(s)
   }
   s.cbs.add(cb)
   if (s.last !== undefined) setTimeout(() => s.cbs.has(cb) && cb(s.last), 0)

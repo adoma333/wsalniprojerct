@@ -32,15 +32,19 @@ export default function App() {
     return watchUser(st.uid, (u) => setUser(u && !u.deleted ? u : null))
   }, [st.uid])
 
-  const ready = st.ready && (st.error || user !== undefined || !!trackKey)
+  // حارس: إذا الحساب ما وصلش في 12 ثانية، نبيّنو رسالة اتصال بدل شاشة البداية للأبد
+  const [slow, setSlow] = useState(false)
+  useEffect(() => { if (!st.ready || user !== undefined) return; const t = setTimeout(() => setSlow(true), 12000); return () => clearTimeout(t) }, [st.ready, user === undefined])
+  const ready = st.ready && (st.error || user !== undefined || !!trackKey || slow)
   const ctx = { ...st, user, kind: 'rider' }
 
   return (
     <AppProvider value={ctx}>
       <Toasts />
       <Splash done={ready} />
+      {ready && !st.error && slow && user === undefined && !trackKey && <div className="empty" style={{ paddingTop: 120 }}><b>{tr('الاتصال بالخادم ضعيف', 'Slow connection')}</b><div className="small">{tr('تحقق من الأنترنت وعاود', 'Check your internet and retry')}</div><button className="btn btn-primary mt" onClick={() => location.reload()}>{tr('عاود', 'Retry')}</button></div>}
       {ready && st.error && <div className="empty" style={{ paddingTop: 120 }}><b>{tr('ما قدرناش نتكونيكتاو', 'Connection failed')}</b><div className="small">{st.error}</div><button className="btn btn-primary mt" onClick={() => location.reload()}>{tr('عاود', 'Retry')}</button></div>}
-      {ready && !st.error && (
+      {ready && !st.error && !(slow && user === undefined && !trackKey) && (
         trackKey ? <Track shareKey={trackKey} />
         : st.settings.maintenance?.on ? <Maintenance message={st.settings.maintenance.message} support={st.settings.support} />
         : !onb ? <Onboarding onDone={() => { localStorage.setItem('w_onb', '1'); setOnb(true) }} />
