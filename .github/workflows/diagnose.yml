@@ -27,6 +27,7 @@ jobs:
           SP=$(curl -s https://tiles.openfreemap.org/styles/liberty | python3 -c "import json,sys;print(json.load(sys.stdin)['sprite'])")
           curl -s "$SP.json" | python3 -c "import json,sys;k=sorted(json.load(sys.stdin));print('ICONS',len(k),' '.join(k[:400]))"
       - name: خادم قاعدة البيانات
+        continue-on-error: true
         env:
           API: ${{ secrets.API_URL }}
         run: |
