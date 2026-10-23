@@ -505,12 +505,12 @@ button.row:active { background: var(--card-2); }
 
 /* ===== علامات الحافلات والمحطات ===== */
 .bus-marker { cursor: pointer; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 6px 10px rgba(0,0,0,.3)); }
-.bus-pin { display: flex; align-items: center; gap: 5px; padding: 4px 11px 4px 4px; border-radius: 16px; background: var(--lc); color: #fff; box-shadow: 0 0 0 3px #fff; font-size: 17px; position: relative; transition: transform .2s; }
-[dir=rtl] .bus-pin { padding: 4px 4px 4px 11px; }
-.bus-pin .bi { width: 34px; height: 34px; border-radius: 12px; background: #fff; color: var(--lc); display: grid; place-items: center; }
+.bus-pin { display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 3px; border-radius: 13px; background: var(--lc); color: #fff; box-shadow: 0 0 0 2.5px #fff; font-size: 14px; position: relative; transition: transform .2s; }
+[dir=rtl] .bus-pin { padding: 3px 3px 3px 9px; }
+.bus-pin .bi { width: 26px; height: 26px; border-radius: 9px; background: #fff; color: var(--lc); display: grid; place-items: center; }
 .bus-pin b { font-weight: 900; letter-spacing: .3px; min-width: 14px; text-align: center; }
-.bus-pin .live { position: absolute; top: -6px; inset-inline-end: -6px; width: 14px; height: 14px; border-radius: 50%; background: #12B76A; border: 2.5px solid #fff; animation: pd 1.6s infinite; }
-.bus-tail { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 9px solid #fff; margin-top: 1px; position: relative; }
+.bus-pin .live { position: absolute; top: -5px; inset-inline-end: -5px; width: 12px; height: 12px; border-radius: 50%; background: #12B76A; border: 2.5px solid #fff; animation: pd 1.6s infinite; }
+.bus-tail { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid #fff; margin-top: 1px; position: relative; }
 .bus-tail::after { content: ''; position: absolute; left: -4px; top: -10px; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid var(--lc); }
 .bus-marker:hover .bus-pin { transform: scale(1.1); }
 .stop-marker { cursor: pointer; }

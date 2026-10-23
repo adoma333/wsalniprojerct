@@ -442,3 +442,13 @@
 .home-banner span { position: relative; } .home-banner b { display: block; font-size: 17px; } .home-banner small { opacity: .9; font-size: 12.5px; }
 .greet-tools { margin-inline-start: auto; display: flex; align-items: center; gap: 6px; }
 .sched-mini { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 9px; border-radius: 99px; background: var(--brand-50); color: var(--brand-700); font-size: 12px; font-weight: 700; }
+
+.stop-search { display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 48px; border-radius: 14px; background: var(--card-2); color: var(--muted); margin-bottom: 10px; }
+.stop-search input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font: inherit; font-size: 15px; color: var(--text); }
+.stop-search button { color: var(--muted); display: grid; place-items: center; }
+.stop-results { max-height: 58vh; overflow-y: auto; margin-inline: -4px; padding-inline: 4px; }
+.stop-res { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 6px; border-bottom: 1px solid var(--line); }
+.stop-res:last-child { border-bottom: 0; }
+.stop-res .stop-ico { width: 38px; height: 38px; border-radius: 12px; background: var(--brand-50); display: grid; place-items: center; font-size: 18px; color: var(--brand); flex-shrink: 0; }
+.stop-res b { display: block; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line-badge.sm { min-width: 24px; height: 19px; font-size: 11px; padding: 0 6px; border-radius: 6px; }

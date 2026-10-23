@@ -23,7 +23,7 @@ function markerEl(m) {
   }
   if (m.type === 'bus') {
     // حافلة كبيرة وواضحة: جسم بلون الخط + رقم الخط + سهم الاتجاه
-    return el(`<div class="bus-pin" style="--lc:${esc(m.color || '#E8650A')}"><span class="bi"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M8 18v2M16 18v2"/><circle cx="8" cy="14.5" r="1" fill="currentColor"/><circle cx="16" cy="14.5" r="1" fill="currentColor"/><path d="M8 6.5h8"/></svg></span><b>${esc(m.label || '')}</b>${m.live ? '<i class="live"></i>' : ''}</div><div class="bus-tail" style="--lc:${esc(m.color || '#E8650A')}"></div>`, 'bus-marker')
+    return el(`<div class="bus-pin" style="--lc:${esc(m.color || '#E8650A')}"><span class="bi"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M8 18v2M16 18v2"/><circle cx="8" cy="14.5" r="1" fill="currentColor"/><circle cx="16" cy="14.5" r="1" fill="currentColor"/><path d="M8 6.5h8"/></svg></span><b>${esc(m.label || '')}</b>${m.live ? '<i class="live"></i>' : ''}</div><div class="bus-tail" style="--lc:${esc(m.color || '#E8650A')}"></div>`, 'bus-marker')
   }
   if (m.type === 'busstop') return el(`${m.label ? `<div class="pin-label sm"><span>${esc(m.label)}</span></div>` : ''}<div class="stop-pin ${m.near ? 'near' : ''}" style="--lc:${esc(m.color || '#18120e')}"><span>🚏</span></div>`, 'pin-marker stop-marker')
   if (m.type === 'me') return el('<span class="me-acc"></span><span class="me-cone"></span><span class="me-dot"></span>', 'me-marker')

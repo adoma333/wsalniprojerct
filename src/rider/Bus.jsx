@@ -1,10 +1,10 @@
 // تتبّع الحافلات: خريطة كاملة فيها الخطوط والمحطات والحافلات، أقرب محطة ليك، ووقت وصول كل حافلة —
 // باش تخرج تمشي للمحطة في الوقت وتركب مباشرة.
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Bus as BusIco, Footprints, Clock, MapPin, Navigation, Crosshair, Info, Radio, ChevronLeft } from 'lucide-react'
+import { ArrowLeft, Bus as BusIco, Footprints, Clock, MapPin, Navigation, Crosshair, Info, Radio, ChevronLeft, Search, X, History } from 'lucide-react'
 import MapView from '@/map/MapView.jsx'
 import DragPanel from '@/ui/DragPanel.jsx'
-import { useNav, Empty } from '@/ui/kit.jsx'
+import { useNav, Empty, Sheet } from '@/ui/kit.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
 import { tr, isAr, haversine } from '@/core/util.js'
 import { CITIES } from '@/core/config.js'
@@ -32,6 +32,7 @@ export default function BusPage() {
   const prefs = useMapPrefs()
   const [brg, setBrg] = useState({ b: 0, p: 0 })
   const [walkPath, setWalkPath] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   useEffect(() => watchLines(setRawLines), [])
   useEffect(() => watchLiveBuses(setLive), [])
@@ -135,6 +136,7 @@ export default function BusPage() {
         <div className="flex" style={{ gap: 10 }}>
           <button className="icon-btn" onClick={nav.back} aria-label="back"><ArrowLeft size={20} style={{ transform: isAr ? 'scaleX(-1)' : '' }} /></button>
           <div className="bus-title"><b>{tr('تتبّع الحافلات', 'Bus tracker')}</b><small>{isAr ? city.ar : city.en} • {buses.length} {tr('حافلة في الطريق', 'buses running')}</small></div>
+          <button className="icon-btn" onClick={() => setSearchOpen(true)} aria-label="search stops"><Search size={20} /></button>
           <button className="icon-btn" onClick={async () => { const p = await currentPosition(); if (p) { setMe(p.coords); setStopSel(null); mapRef.current?.flyTo(p.coords, 15.5) } }} aria-label="locate"><Crosshair size={20} /></button>
         </div>
         {lines.length > 0 && (
@@ -187,6 +189,66 @@ export default function BusPage() {
           <div className="center" style={{ padding: 20 }}><span className="spinner" /></div>
         )}
       </DragPanel>
+      <StopSearch open={searchOpen} onClose={() => setSearchOpen(false)} stops={stops} lines={lines} here={here}
+        onPick={(s) => { setSearchOpen(false); setBusSel(null); setSel('all'); setStopSel({ line: s.line.id, i: s.i }); mapRef.current?.flyTo(s.coords, 16) }} />
     </div>
+  )
+}
+
+// البحث عن المحطات: بالاسم ولا برقم الخط، المحطات اللي في نفس البلاصة تتجمّع مع كل الخطوط اللي تفوت عليها
+const RK = 'w_bus_recent'
+const norm = (t = '') => t.toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[\u064B-\u0652]/g, '').trim()
+const fmtKm = (km) => (km < 1 ? `${Math.round(km * 1000)} م` : `${km.toFixed(1)} كم`)
+function StopSearch({ open, onClose, stops, lines, here, onPick }) {
+  const [q, setQ] = useState('')
+  const [recent, setRecent] = useState(() => { try { return JSON.parse(localStorage.getItem(RK)) || [] } catch { return [] } })
+  useEffect(() => { if (!open) setQ('') }, [open])
+  const groups = useMemo(() => {
+    const out = []
+    for (const s of stops) {
+      const g = out.find((x) => haversine(x.coords, s.coords) < 0.12)
+      if (g) { if (!g.lines.some((l) => l.id === s.line.id)) g.lines.push(s.line); g.names.add(s.name) }
+      else out.push({ key: `${s.line.id}-${s.i}`, name: s.name, names: new Set([s.name]), coords: s.coords, stop: s, lines: [s.line] })
+    }
+    return out.map((g) => ({ ...g, km: haversine(here, g.coords) }))
+  }, [stops, here[0], here[1]])
+  const nq = norm(q)
+  const res = useMemo(() => {
+    const list = nq ? groups.filter((g) => [...g.names].some((n) => norm(n).includes(nq)) || g.lines.some((l) => norm(String(l.number)) === nq)) : groups
+    return [...list].sort((a, b) => a.km - b.km).slice(0, 40)
+  }, [groups, nq])
+  const recents = recent.map((k) => groups.find((g) => g.key === k)).filter(Boolean)
+  const pick = (g) => {
+    const r = [g.key, ...recent.filter((k) => k !== g.key)].slice(0, 6)
+    setRecent(r); try { localStorage.setItem(RK, JSON.stringify(r)) } catch {}
+    onPick(g.stop)
+  }
+  const row = (g, ico) => (
+    <button key={g.key} className="stop-res" onClick={() => pick(g)}>
+      <span className="stop-ico">{ico}</span>
+      <span className="grow" style={{ minWidth: 0, textAlign: 'start' }}>
+        <b>{g.name}</b>
+        <span className="flex" style={{ gap: 4, flexWrap: 'wrap', marginTop: 3 }}>{g.lines.map((l) => <span key={l.id} className="line-badge sm" style={{ '--lc': l.color }}>{l.number}</span>)}</span>
+      </span>
+      <small className="num muted">{fmtKm(g.km)}</small>
+    </button>
+  )
+  return (
+    <Sheet open={open} onClose={onClose} title={tr('البحث عن المحطات', 'Search stops')} sub={tr(`${groups.length} محطة • ${lines.length} خط`, `${groups.length} stops • ${lines.length} lines`)}>
+      <div className="stop-search">
+        <Search size={18} />
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('اسم المحطة ولا رقم الخط…', 'Stop name or line number…')} />
+        {q && <button onClick={() => setQ('')} aria-label="clear"><X size={17} /></button>}
+      </div>
+      <div className="stop-results">
+        {!nq && recents.length > 0 && <>
+          <div className="section-title">{tr('آخر المحطات', 'Recent')}</div>
+          {recents.map((g) => row(g, <History size={19} />))}
+          <div className="section-title">{tr('المحطات القريبة', 'Nearby stops')}</div>
+        </>}
+        {res.map((g) => row(g, '🚏'))}
+        {nq && res.length === 0 && <div className="small muted center" style={{ padding: 20 }}>{tr('ما لقينا حتى محطة بهاد الاسم', 'No stops found')}</div>}
+      </div>
+    </Sheet>
   )
 }
