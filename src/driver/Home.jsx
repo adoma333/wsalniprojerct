@@ -509,7 +509,6 @@ function DriverDrawer({ open, onClose, driver, nav, online, settings }) {
       <DrawerItem icon={<CalendarClock size={19} />} color="#475569" label={tr('كورسات محجوزة ولا مبرمجة', 'Scheduled rides')} onClick={() => go('scheduled')} />
       <DrawerItem icon={<Wallet size={19} />} color="#a16207" label={tr('البورتفاي', 'Wallet')} onClick={() => go('wallet')} />
       <DrawerItem icon={<BadgeDollarSign size={19} />} color="#16a34a" label={tr('المدخول', 'Earnings')} onClick={() => go('earnings')} />
-      {settings?.features?.bus !== false && <DrawerItem icon={<BusIcon size={19} />} color="#2E90FA" label={tr('وضع سائق الحافلة', 'Bus driver mode')} onClick={() => go('busmode')} />}
       <DrawerItem icon={<Gift size={19} />} color="#ef4444" label={tr('عرّض الشيفورات', 'Invite drivers')} onClick={() => go('invite')} />
       <DrawerItem icon={<Users size={19} />} color="#475569" label={tr('الإحالات تاعي', 'My referrals')} onClick={() => go('referrals')} />
       <DrawerItem icon={<Bell size={19} />} color="#a855f7" label={tr('الإشعارات', 'Notifications')} onClick={() => go('notifications')} />

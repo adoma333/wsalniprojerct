@@ -306,7 +306,10 @@ function IdlePanel({ user, wx, onSearch, onPlace, rides, nav, settings }) {
       <div className="greet">
         <span style={{ fontSize: 20 }}>{wx?.icon || '🌤️'}</span>
         <span>{greeting()}، <b>{user.name?.split(' ')[0]}</b></span>
-        {wx && <span className="badge gray" style={{ marginInlineStart: 'auto' }}><span className="num">{wx.temp}°</span></span>}
+        <span className="greet-tools">
+          {settings.features?.schedule !== false && <button className="sched-mini" onClick={() => onSearch('dropoff', { schedule: true })} aria-label="schedule" title={tr('برمج كورسة', 'Schedule a ride')}><CalendarClock size={16} /><span>{tr('برمج', 'Schedule')}</span></button>}
+          {wx && <span className="badge gray"><span className="num">{wx.temp}°</span></span>}
+        </span>
       </div>
       <button className="search-box" onClick={() => onSearch('dropoff')}>
         <span className="sicon"><Search size={19} /></span>

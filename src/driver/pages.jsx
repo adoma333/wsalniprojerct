@@ -15,7 +15,7 @@ import { tr, money, dateTime, km, mins, copy, shareLink, compressImage, isAr, LA
 import { CITIES, SITE_URL } from '@/core/config.js'
 import { driverNet } from '@/core/pricing.js'
 import { watchDriverRides, updateDriver, deleteAccount, store, updateRide, watchTx, watchMyWithdrawals, watchMyTopupsAs, requestWithdraw, WITHDRAW_METHODS } from '@/core/api.js'
-import { DOC_LIST } from './App.jsx'
+import { DOC_LIST, docsFor } from './App.jsx'
 import { rating } from './Home.jsx'
 export { Notifications, Support, Settings } from '@/ui/common-pages.jsx'
 export { ChatPage }
@@ -414,14 +414,14 @@ export function Documents() {
   return (
     <Page title={tr('الوثائق', 'Documents')}>
       <div className="col">
-        {DOC_LIST.map(([k, label, I]) => (
+        {docsFor(driver).map(([k, label, I]) => (
           <button key={k} className="card" style={{ overflow: 'hidden', textAlign: 'start', padding: 0 }} onClick={() => setScan(k)}>
             {docs[k] ? <img src={docs[k]} alt="" style={{ width: '100%', height: 150, objectFit: 'cover', display: 'block' }} /> : <div style={{ height: 110, display: 'grid', placeItems: 'center', background: 'var(--card-2)' }}><I size={34} color="var(--faint)" /></div>}
             <div className="between" style={{ padding: 14 }}><b>{label}</b>{docs[k] ? <span className="badge green"><CheckCircle2 size={12} />{tr('موثّقة', 'Verified')}</span> : <span className="badge red">{tr('لازم', 'Required')}</span>}</div>
           </button>
         ))}
       </div>
-      <Scanner open={!!scan} onClose={() => setScan(null)} onDone={save} shape={scan === 'carPhoto' ? 'wide' : 'card'} title={DOC_LIST.find(([k]) => k === scan)?.[1]}
+      <Scanner open={!!scan} onClose={() => setScan(null)} onDone={save} shape={scan === 'carPhoto' ? 'wide' : 'card'} title={docsFor(driver).find(([k]) => k === scan)?.[1]}
         steps={[tr('قراءة الوثيقة', 'Reading document'), tr('التحقق من الصلاحية', 'Checking validity'), tr('تحديث الملف', 'Updating profile')]} successText={tr('الوثيقة مقبولة ✓', 'Document accepted ✓')} />
     </Page>
   )

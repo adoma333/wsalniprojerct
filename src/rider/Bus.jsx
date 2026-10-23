@@ -8,7 +8,8 @@ import { useNav, Empty } from '@/ui/kit.jsx'
 import { useApp } from '@/ui/app-ctx.jsx'
 import { tr, isAr, haversine } from '@/core/util.js'
 import { CITIES } from '@/core/config.js'
-import { currentPosition } from '@/core/geo.js'
+import { currentPosition, walkRoute } from '@/core/geo.js'
+import MapControls, { useMapPrefs } from '@/map/MapControls.jsx'
 import { measure, project, pointAt, simBuses, etaTo, walkMin, linePath, watchLines, watchLiveBuses, demoLines, inService } from '@/core/bus.js'
 
 const fmt = (m) => (m < 1 ? tr('توصل دروك', 'Arriving') : `${Math.round(m)} ${tr('د', 'min')}`)
@@ -28,6 +29,9 @@ export default function BusPage() {
   const [busSel, setBusSel] = useState(null)
   const [now, setNow] = useState(Date.now())
   const [panelH, setPanelH] = useState(300)
+  const prefs = useMapPrefs()
+  const [brg, setBrg] = useState({ b: 0, p: 0 })
+  const [walkPath, setWalkPath] = useState(null)
 
   useEffect(() => watchLines(setRawLines), [])
   useEffect(() => watchLiveBuses(setLive), [])
@@ -89,7 +93,17 @@ export default function BusPage() {
     }
     return out.sort((a, b) => a.min - b.min).slice(0, 8)
   }, [focus?.coords?.join(), buses, meas])
-  const walk = focus ? walkMin(here, focus.coords) : 0
+  const walk0 = focus ? walkMin(here, focus.coords) : 0
+  // مسار المشي الحقيقي على الطرقات (مع المنعطفات) من بلاصتي للمحطة
+  const wkKey = focus && me ? `${me[0].toFixed(4)},${me[1].toFixed(4)}>${focus.coords.join()}` : ''
+  useEffect(() => {
+    if (!wkKey) { setWalkPath(null); return }
+    let off = false
+    setWalkPath(null)
+    walkRoute(me, focus.coords).then((r) => { if (!off) setWalkPath(r) })
+    return () => { off = true }
+  }, [wkKey])
+  const walk = walkPath?.real ? walkPath.durationMin : walk0
 
   // تحريك الخريطة لأقرب محطة أول مرة
   const did = useRef(false)
@@ -107,7 +121,7 @@ export default function BusPage() {
     markers.push({ id: b.id, type: 'bus', coords: b.coords, label: l?.number, color: l?.color, live: b.live, smooth: 1900, onClick: () => setBusSel(b.id) })
   }
   const routes = lines.filter((l) => meas[l.id] && (sel === 'all' || l.id === sel)).map((l) => ({ id: 'ln-' + l.id, coords: meas[l.id].path, color: l.color, from: l.color, to: l.color, width: sel === l.id ? 6 : 4, flow: false, casing: '#ffffff' }))
-  if (focus && me && walk < 40) routes.push({ id: 'walk', coords: [me, focus.coords], dashed: true, color: '#2E90FA' })
+  if (focus && me && walk < 40 && walkPath?.real && walkPath.coords.length > 1) routes.push({ id: 'walk', coords: walkPath.coords, dashed: true, color: '#2E90FA' })
 
   const selBus = busSel && buses.find((b) => b.id === busSel)
   const selBusLine = selBus && lines.find((l) => l.id === selBus.line)
@@ -115,7 +129,8 @@ export default function BusPage() {
 
   return (
     <div className="home bus-page">
-      <MapView ref={mapRef} center={here} zoom={14} markers={markers} routes={routes} padding={{ bottom: panelH, top: 120 }} />
+      <MapView ref={mapRef} center={here} zoom={14} markers={markers} routes={routes} padding={{ bottom: panelH, top: 120 }} mapType={prefs.mapType} pitch3d={prefs.pitch3d} onBearing={(b, p) => setBrg({ b, p })} />
+      <MapControls prefs={prefs} bearing={brg.b} pitch={brg.p} onNorth={() => mapRef.current?.resetNorth()} bottom={panelH + 14} onLocate={async () => { const p = await currentPosition(); if (p) { setMe(p.coords); setStopSel(null); mapRef.current?.flyTo(p.coords, 16) } }} />
       <div className="bus-top">
         <div className="flex" style={{ gap: 10 }}>
           <button className="icon-btn" onClick={nav.back} aria-label="back"><ArrowLeft size={20} style={{ transform: isAr ? 'scaleX(-1)' : '' }} /></button>
@@ -150,7 +165,7 @@ export default function BusPage() {
                 <small className="muted">{stopSel ? tr('المحطة المختارة', 'Selected stop') : tr('أقرب محطة ليك', 'Nearest stop')}</small>
                 <b>{focus.name}</b>
               </div>
-              <div className="walk"><Footprints size={16} /><b className="num">{Math.max(1, Math.round(walk))}</b><small>{tr('د مشي', 'min walk')}</small></div>
+              <div className="walk"><Footprints size={16} /><b className="num">{Math.max(1, Math.round(walk))}</b><small>{tr('د مشي', 'min walk')}</small>{walkPath?.real && <small className="num" style={{ opacity: .75 }}>{walkPath.distanceKm < 1 ? `${Math.round(walkPath.distanceKm * 1000)} م` : `${walkPath.distanceKm.toFixed(1)} كم`}</small>}</div>
             </div>
             <div className="section-title" style={{ marginTop: 12 }}>{tr('الحافلات الجاية', 'Next buses')}</div>
             {arrivals.length === 0 && <div className="small muted center" style={{ padding: 14 }}>{lines.every((l) => !inService(l)) ? tr('الحافلات ما راهيش تخدم في هاد الوقت', 'Buses are not running now') : tr('نحسبو أوقات الوصول…', 'Calculating arrivals…')}</div>}

@@ -22,8 +22,8 @@ function markerEl(m) {
     return d
   }
   if (m.type === 'bus') {
-    const d = el(`<div class="bus-pin" style="--lc:${esc(m.color || '#E8650A')}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6M16 6v6M2 12h19.6M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg><b>${esc(m.label || '')}</b>${m.live ? '<i class="live"></i>' : ''}</div>`, 'bus-marker')
-    return d
+    // حافلة كبيرة وواضحة: جسم بلون الخط + رقم الخط + سهم الاتجاه
+    return el(`<div class="bus-pin" style="--lc:${esc(m.color || '#E8650A')}"><span class="bi"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M8 18v2M16 18v2"/><circle cx="8" cy="14.5" r="1" fill="currentColor"/><circle cx="16" cy="14.5" r="1" fill="currentColor"/><path d="M8 6.5h8"/></svg></span><b>${esc(m.label || '')}</b>${m.live ? '<i class="live"></i>' : ''}</div><div class="bus-tail" style="--lc:${esc(m.color || '#E8650A')}"></div>`, 'bus-marker')
   }
   if (m.type === 'busstop') return el(`${m.label ? `<div class="pin-label sm"><span>${esc(m.label)}</span></div>` : ''}<div class="stop-pin ${m.near ? 'near' : ''}" style="--lc:${esc(m.color || '#18120e')}"><span>🚏</span></div>`, 'pin-marker stop-marker')
   if (m.type === 'me') return el('<span class="me-acc"></span><span class="me-cone"></span><span class="me-dot"></span>', 'me-marker')
@@ -160,7 +160,7 @@ const MapView = forwardRef(function MapView({ center = [-0.6309, 35.1899], zoom 
       if (e && e.sig !== sig) { e.marker.remove(); mk.current.delete(x.id); e = null }
       if (!e) {
         const node = markerEl(x)
-        const marker = new maplibregl.Marker({ element: node, anchor: x.type === 'car' || x.type === 'me' || x.type === 'bus' ? 'center' : 'bottom', rotationAlignment: x.type === 'car' ? 'map' : 'viewport', pitchAlignment: x.type === 'car' ? 'map' : 'viewport' }).setLngLat(x.coords).addTo(m)
+        const marker = new maplibregl.Marker({ element: node, anchor: x.type === 'car' || x.type === 'me' ? 'center' : 'bottom', rotationAlignment: x.type === 'car' ? 'map' : 'viewport', pitchAlignment: x.type === 'car' ? 'map' : 'viewport' }).setLngLat(x.coords).addTo(m)
         node.addEventListener('click', (ev) => { const cur = mk.current.get(x.id); if (cur?.cb) { ev.stopPropagation(); cur.cb() } })
         if (x.type === 'car') marker.setRotation(x.heading || 0)
         e = { marker, node, sig, rot: x.heading || 0, anim: null, cb: x.onClick }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { User, Phone, Mail, MapPin, Car, Palette, Hash, Calendar, Camera, FileCheck2, ShieldCheck, Clock, XCircle, ChevronDown, CheckCircle2, IdCard, FileText, ArrowLeft, ScanLine } from 'lucide-react'
+import { User, Phone, Mail, MapPin, Car, Palette, Hash, Calendar, Camera, FileCheck2, ShieldCheck, Clock, XCircle, ChevronDown, CheckCircle2, IdCard, FileText, ArrowLeft, ScanLine, Bus } from 'lucide-react'
 import Scanner from '@/ui/Scanner.jsx'
+import BusHome, { useDriverLines } from './BusHome.jsx'
 import { useBoot, AppProvider } from '@/ui/app-ctx.jsx'
 import { NavProvider, Splash, Toasts, toast, Avatar, Maintenance } from '@/ui/kit.jsx'
 import { ClassCar } from '@/ui/art.jsx'
@@ -32,13 +33,13 @@ export default function App() {
   if (ready && !st.error && slow && driver === undefined) body = <div className="empty" style={{ paddingTop: 120 }}><b>{tr('الاتصال بالخادم ضعيف', 'Slow connection')}</b><div className="small">{tr('تحقق من الأنترنت وعاود', 'Check your internet and retry')}</div><button className="btn btn-primary mt" onClick={() => location.reload()}>{tr('عاود', 'Retry')}</button></div>
   else if (ready && !st.error) {
     if (st.settings.maintenance?.on) body = <Maintenance message={st.settings.maintenance.message} support={st.settings.support} />
-    else if (!driver || editing) body = <Register uid={st.uid} existing={driver} autoApprove={st.settings.autoApproveDrivers || st.settings.kyc?.autoVerify} onDone={() => setEditing(false)} />
+    else if (!driver || editing) body = <Register uid={st.uid} existing={driver} settings={st.settings} autoApprove={st.settings.autoApproveDrivers || st.settings.kyc?.autoVerify} onDone={() => setEditing(false)} />
     else if (driver.status === 'pending') body = <Status icon={<Clock size={44} />} color="var(--warning)" title={tr('الطلب تاعك راهو يتراجع', 'Under review')} sub={tr('نراجع مستنداتك دروك. ستصلك الموافقة خلال 24 ساعة كحد أقصى.', 'We are reviewing your documents.')} onEdit={() => setEditing(true)} />
     else if (driver.status === 'rejected') body = <Status icon={<XCircle size={44} />} color="var(--danger)" title={tr('ما قدرناش نقبلو الطلب', 'Application rejected')} sub={driver.rejectReason || tr('يرجى تحديث المستندات وإعادة الإرسال', 'Please update your documents')} onEdit={() => setEditing(true)} />
     else if (driver.status === 'blocked') body = <Status icon={<XCircle size={44} />} color="var(--danger)" title={tr('الحساب موقوف', 'Account suspended')} sub={tr('تواصل مع الدعم لمزيد من المعلومات', 'Contact support')} />
     else body = (
       <NavProvider render={(p) => { const C = PAGES[p.name]; return C ? <C {...p.params} /> : null }}>
-        <Home />
+        {driver.kind === 'bus' ? <BusHome /> : <Home />}
         <PopupGate audience="drivers" city={driver.city} />
       </NavProvider>
     )
@@ -76,16 +77,31 @@ const DOCS = [
   ['registration', tr('الكارط قريز', 'Vehicle registration'), FileCheck2],
 ]
 export const DOC_LIST = DOCS
+// وثائق سائق الحافلة: نفس المفاتيح بأسماء الحافلة
+export const BUS_DOCS = [
+  ['license', tr('البيرمي (صنف D)', 'Driving license (D)'), IdCard],
+  ['id', tr('بطاقة التعريف / الباسبور', 'National ID / Passport'), FileText],
+  ['carPhoto', tr('تصويرة الحافلة من القدام', 'Bus photo (front)'), Bus],
+  ['registration', tr('الكارط قريز تاع الحافلة', 'Bus registration'), FileCheck2],
+]
+export const docsFor = (d) => (d?.kind === 'bus' ? BUS_DOCS : DOCS)
+const TYPES = [
+  ['m', 'car', '👨', tr('شيفور', 'Driver'), tr('كورسات بالطوموبيل', 'Car rides')],
+  ['f', 'car', '👩', tr('شيفورة', 'Female driver'), tr('كورسات + طلبات النساء', 'Rides + women-only')],
+  ['m', 'bus', '🚌', tr('سائق حافلة', 'Bus driver'), tr('بث موقع الحافلة', 'Share bus location')],
+]
 
-function Register({ uid, existing, autoApprove, onDone }) {
+function Register({ uid, existing, autoApprove, onDone, settings }) {
   const [step, setStep] = useState(0)
   const [f, setF] = useState(() => ({
-    name: existing?.name || '', phone: (existing?.phone || '').replace('+213', ''), email: existing?.email || '', city: existing?.city || 'sba', photo: existing?.photo || '', gender: existing?.gender || 'm',
+    name: existing?.name || '', phone: (existing?.phone || '').replace('+213', ''), email: existing?.email || '', city: existing?.city || 'sba', photo: existing?.photo || '', gender: existing?.gender || 'm', kind: existing?.kind || 'car',
+    busLine: existing?.busLine || '', bus: existing?.bus || { number: '', plate: '', operator: '', seats: '' },
     vehicle: existing?.vehicle || { make: '', model: '', year: '', color: '', plate: '', class: 'eco' },
     docs: existing?.docs || {}, referral: '',
   }))
   const [busy, setBusy] = useState(false)
   const [scan, setScan] = useState(null)
+  const busLines = useDriverLines({ city: f.city }, settings || {})
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   const setV = (k) => (e) => setF({ ...f, vehicle: { ...f.vehicle, [k]: e.target.value } })
   const upload = (k) => async (e) => {
@@ -95,25 +111,30 @@ function Register({ uid, existing, autoApprove, onDone }) {
     if (k === 'photo') setF({ ...f, photo: data })
     else setF({ ...f, docs: { ...f.docs, [k]: data } })
   }
+  const isBus = f.kind === 'bus'
+  const D = isBus ? BUS_DOCS : DOCS
+  const setB = (k) => (e) => setF({ ...f, bus: { ...f.bus, [k]: e.target.value } })
   const valid = [
     f.name.trim().length >= 2 && f.phone.replace(/\D/g, '').length >= 9,
-    f.vehicle.make && f.vehicle.model && f.vehicle.plate && f.vehicle.color,
-    DOCS.every(([k]) => f.docs[k]),
+    isBus ? f.busLine && f.bus.plate.trim().length >= 4 : f.vehicle.make && f.vehicle.model && f.vehicle.plate && f.vehicle.color,
+    D.every(([k]) => f.docs[k]),
     true,
   ]
   const submit = async () => {
     setBusy(true)
     try {
       await registerDriver(uid, {
-        name: f.name.trim(), phone: '+213' + f.phone.replace(/\D/g, '').replace(/^0+/, '').replace(/^213/, ''), email: f.email, city: f.city, photo: f.photo, gender: f.gender,
-        vehicle: f.vehicle, docs: f.docs, referredBy: f.referral.toUpperCase(),
+        name: f.name.trim(), phone: '+213' + f.phone.replace(/\D/g, '').replace(/^0+/, '').replace(/^213/, ''), email: f.email, city: f.city, photo: f.photo, gender: f.gender, kind: f.kind,
+        vehicle: isBus ? { make: tr('حافلة', 'Bus'), model: f.bus.operator || '', year: '', color: '', plate: f.bus.plate, class: 'bus' } : f.vehicle,
+        ...(isBus ? { busLine: f.busLine, bus: f.bus } : {}),
+        docs: f.docs, referredBy: f.referral.toUpperCase(),
       }, autoApprove)
       toast(autoApprove ? tr('الحساب تاعك تفعّل، ابدا الخدمة دروك 🚀', 'Account activated 🚀') : tr('الطلب تاعك تبعث للمراجعة ✅', 'Submitted for review ✅'), 'success')
       onDone?.()
     } catch (e) { toast(e.message, 'error') }
     setBusy(false)
   }
-  const titles = [tr('المعلومات تاعك', 'Personal info'), tr('معلومات الطوموبيل', 'Vehicle'), tr('الوثائق', 'Documents'), tr('المراجعة والإرسال', 'Review')]
+  const titles = [tr('المعلومات تاعك', 'Personal info'), isBus ? tr('الحافلة والخط', 'Bus & line') : tr('معلومات الطوموبيل', 'Vehicle'), tr('الوثائق', 'Documents'), tr('المراجعة والإرسال', 'Review')]
   return (
     <div className="page fade">
       <div className="auth-hero" style={{ paddingBottom: 60, background: 'linear-gradient(135deg,#2A1A12,#18120E 60%,#3a1b0c)' }}>
@@ -136,9 +157,15 @@ function Register({ uid, existing, autoApprove, onDone }) {
               <input type="file" accept="image/*" hidden onChange={upload('photo')} />
             </label>
             <div className="field"><label>{tr('الاسم واللقب', 'Full name')}</label><div className="input-wrap"><User size={18} /><input className="input" value={f.name} onChange={set('name')} /></div></div>
-            <div className="field"><label>{tr('أنا', 'I am')}</label>
-              <div className="seg-btns">{[['m', tr('شيفور 👨', 'Male driver 👨')], ['f', tr('شيفورة 👩', 'Female driver 👩')]].map(([k, l]) => <button key={k} className={f.gender === k ? 'active' : ''} onClick={() => setF({ ...f, gender: k })}>{l}</button>)}</div>
-              {f.gender === 'f' && <span className="tiny muted">{tr('تجيك طلبات "شيفورة مرا" من الزبونات', 'You will also receive women-only requests')}</span>}
+            <div className="field"><label>{tr('نوع الحساب', 'Account type')}</label>
+              <div className="acc-types">
+                {TYPES.map(([g, k, ic, t, sub]) => {
+                  const on = f.kind === k && (k === 'bus' || f.gender === g)
+                  return <button key={g + k} className={on ? 'active' : ''} onClick={() => setF({ ...f, gender: g, kind: k })}><span className="ic">{ic}</span><b>{t}</b><small>{sub}</small></button>
+                })}
+              </div>
+              {f.kind === 'car' && f.gender === 'f' && <span className="tiny muted">{tr('تجيك طلبات "شيفورة مرا" من الزبونات', 'You will also receive women-only requests')}</span>}
+              {isBus && <span className="tiny muted">{tr('حساب خاص: تختار الخط وتبث موقع الحافلة، والزبائن يشوفو وقت وصولها لكل محطة', 'Choose your line and share the bus location with riders')}</span>}
             </div>
             <div className="field"><label>{tr('رقم التيليفون', 'Phone')}</label><div className="phone-in"><div className="cc">🇩🇿 +213</div><input className="input" inputMode="tel" value={f.phone} onChange={set('phone')} placeholder="661 23 45 67" /></div></div>
             <div className="field"><label>{tr('البريد الإلكتروني', 'Email')}</label><div className="input-wrap"><Mail size={18} /><input className="input" type="email" value={f.email} onChange={set('email')} /></div></div>
@@ -148,7 +175,30 @@ function Register({ uid, existing, autoApprove, onDone }) {
             </div>
           </div>
         )}
-        {step === 1 && (
+        {step === 1 && isBus && (
+          <div className="col rise">
+            <div className="field"><label>{tr('الخط اللي تسوق فيه', 'Your bus line')}</label>
+              {busLines === null && <span className="spinner" />}
+              {busLines?.length === 0 && <div className="small muted">{tr('ما كاين حتى خط في ولايتك دروك — الإدارة تزيدو', 'No lines in your city yet')}</div>}
+              <div className="col" style={{ gap: 8 }}>
+                {busLines?.map((l) => (
+                  <button key={l.id} className={`method ${f.busLine === l.id ? 'active' : ''}`} onClick={() => setF({ ...f, busLine: l.id })}>
+                    <span className="line-badge" style={{ '--lc': l.color }}>{l.number}</span>
+                    <span className="grow" style={{ textAlign: 'start' }}><b>{l.name}</b><small><span dir="ltr">{l.start} – {l.end}</span></small></span>
+                    <span className={`radio ${f.busLine === l.id ? 'on' : ''}`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid2">
+              <div className="field"><label>{tr('رقم الحافلة', 'Bus number')}</label><div className="input-wrap"><Hash size={18} /><input className="input" value={f.bus.number} onChange={setB('number')} placeholder="17" /></div></div>
+              <div className="field"><label>{tr('عدد المقاعد', 'Seats')}</label><input className="input" inputMode="numeric" value={f.bus.seats} onChange={setB('seats')} placeholder="30" /></div>
+            </div>
+            <div className="field"><label>{tr('رقم الماتريكول', 'Plate number')}</label><div className="input-wrap"><Hash size={18} /><input className="input" value={f.bus.plate} onChange={setB('plate')} placeholder="12345 118 22" style={{ direction: 'ltr', letterSpacing: 2 }} /></div></div>
+            <div className="field"><label>{tr('الشركة / المؤسسة', 'Operator')}</label><div className="input-wrap"><Bus size={18} /><input className="input" value={f.bus.operator} onChange={setB('operator')} placeholder={tr('مؤسسة النقل الحضري', 'Urban transport company')} /></div></div>
+          </div>
+        )}
+        {step === 1 && !isBus && (
           <div className="col rise">
             <div className="field"><label>{tr('نوع الطوموبيل', 'Vehicle class')}</label>
               <div className="grid2">
@@ -169,7 +219,7 @@ function Register({ uid, existing, autoApprove, onDone }) {
         {step === 2 && (
           <div className="col rise">
             <div className="small muted">{tr('صوّر الوثائق مليح. محفوظين في أمان وما يشوفهم غير فريق المراجعة.', 'Take clear photos. Only our review team can see them.')}</div>
-            {DOCS.map(([k, label, I]) => (
+            {D.map(([k, label, I]) => (
               <button key={k} className="row" onClick={() => setScan(k)} style={{ border: '1.5px dashed ' + (f.docs[k] ? 'var(--success)' : 'var(--line-2)'), borderRadius: 18, background: f.docs[k] ? 'var(--success-bg)' : 'var(--card-2)', textAlign: 'start', width: '100%' }}>
                 {f.docs[k] ? <img src={f.docs[k]} alt="" style={{ width: 54, height: 42, objectFit: 'cover', borderRadius: 10 }} /> : <span className="ri" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}><I size={20} /></span>}
                 <span className="rt"><b>{label}</b><small>{f.docs[k] ? tr('تحقّقنا منها ✓ اضغط باش تبدّل', 'Verified ✓ tap to change') : tr('اضغط وصوّرها، الكاميرا تكشفها وحدها', 'Tap to scan, auto-detected')}</small></span>
@@ -181,7 +231,9 @@ function Register({ uid, existing, autoApprove, onDone }) {
         {step === 3 && (
           <div className="col rise">
             <div className="flex"><Avatar name={f.name} src={f.photo} size={56} /><div><b>{f.name}</b><div className="small muted num">+213 {f.phone}</div></div></div>
-            <div className="card pad flex" style={{ background: 'var(--card-2)', boxShadow: 'none' }}><ClassCar type={f.vehicle.class} /><div><b>{f.vehicle.make} {f.vehicle.model} {f.vehicle.year}</b><div className="small muted">{f.vehicle.color} • <span className="num">{f.vehicle.plate}</span></div></div></div>
+            {isBus
+              ? <div className="card pad flex" style={{ background: 'var(--card-2)', boxShadow: 'none' }}><span className="line-badge lg" style={{ '--lc': busLines?.find((l) => l.id === f.busLine)?.color || '#E8650A' }}>{busLines?.find((l) => l.id === f.busLine)?.number}</span><div><b>{tr('سائق حافلة', 'Bus driver')} • {busLines?.find((l) => l.id === f.busLine)?.name}</b><div className="small muted">{f.bus.number && `${tr('حافلة', 'Bus')} ${f.bus.number} • `}<span className="num">{f.bus.plate}</span></div></div></div>
+              : <div className="card pad flex" style={{ background: 'var(--card-2)', boxShadow: 'none' }}><ClassCar type={f.vehicle.class} /><div><b>{f.vehicle.make} {f.vehicle.model} {f.vehicle.year}</b><div className="small muted">{f.vehicle.color} • <span className="num">{f.vehicle.plate}</span></div></div></div>}
             <div className="flex small" style={{ color: 'var(--success)' }}><ShieldCheck size={18} />{tr('تحمّلو 4 وثائق', '4 documents uploaded')}</div>
             <div className="small muted">{tr('كي تضغط ابعث راك موافق على شروط الخدمة مع وصلني والخصوصية.', 'By submitting you accept the driver terms.')}</div>
           </div>
@@ -192,7 +244,7 @@ function Register({ uid, existing, autoApprove, onDone }) {
         open={!!scan} onClose={() => setScan(null)}
         onDone={(img) => { setF((x) => ({ ...x, docs: { ...x.docs, [scan]: img } })); setScan(null) }}
         shape={scan === 'carPhoto' ? 'wide' : 'card'}
-        title={DOCS.find(([k]) => k === scan)?.[1]}
+        title={D.find(([k]) => k === scan)?.[1]}
         hint={scan === 'carPhoto' ? tr('خلّي الطوموبيل كاملة والماتريكول باينة', 'Whole car with visible plate') : tr('حط الوثيقة داخل الإطار', 'Place the document in the frame')}
         steps={scan === 'carPhoto' ? [tr('تحليل التصويرة', 'Analysing photo'), tr('قراءة الماتريكول', 'Reading plate'), tr('تمّ الحفظ', 'Saved')] : [tr('قراءة الوثيقة', 'Reading document'), tr('التحقق من الصلاحية', 'Checking validity'), tr('مطابقة المعلومات', 'Matching details')]}
         successText={tr('الوثيقة مقبولة ✓', 'Document accepted ✓')}

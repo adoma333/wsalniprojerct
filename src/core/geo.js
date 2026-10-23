@@ -82,6 +82,23 @@ export async function route(points) {
   return fallbackRoute(pts)
 }
 
+// مسار المشي على الطرقات والأرصفة (OSRM للمشاة)، وإلا مسار السيارة، وإلا خط مستقيم
+export async function walkRoute(a, b) {
+  const path = `${a[0].toFixed(6)},${a[1].toFixed(6)};${b[0].toFixed(6)},${b[1].toFixed(6)}`
+  for (const base of ['https://routing.openstreetmap.de/routed-foot/route/v1/foot/', 'https://router.project-osrm.org/route/v1/foot/', 'https://router.project-osrm.org/route/v1/driving/']) {
+    try {
+      const j = await getJSON(`${base}${path}?overview=full&geometries=geojson&steps=false`, 8000)
+      const r = j.routes?.[0]
+      if (r?.geometry?.coordinates?.length > 1) {
+        const c = r.geometry.coordinates
+        // نوصلو بداية ونهاية المسار بالنقطتين الحقيقيتين
+        return { coords: [a, ...c, b], distanceKm: r.distance / 1000, durationMin: (r.distance / 1000 / 4.8) * 60, real: true }
+      }
+    } catch {}
+  }
+  return { coords: [a, b], distanceKm: haversine(a, b) * 1.25, durationMin: (haversine(a, b) * 1.25 / 4.8) * 60, real: false }
+}
+
 export function fallbackRoute(pts) {
   const coords = []
   let d = 0

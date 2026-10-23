@@ -474,7 +474,11 @@ export function BusLines() {
   const c0 = CITIES.find((c) => c.id === (lines[0]?.city || 'sba')) || CITIES[0]
   const save = async () => { await saveSettings({ bus: b, features: { ...settings.features, bus: b.enabled !== false } }, 'تحديث إعدادات الحافلات'); toast('تم الحفظ ✅', 'success') }
   const importDemo = async () => {
-    for (const l of demoLines(CITIES[0].center)) { const { id, demo, ...data } = l; await saveLine(null, { ...data, city: 'sba', active: true, mode: 'auto' }) }
+    for (const l of demoLines(CITIES[0].center)) {
+      const { id, demo, ...data } = l
+      const r = await route(data.stops.map((s) => s.coords)).catch(() => null)
+      await saveLine(null, { ...data, city: 'sba', active: true, mode: 'auto', ...(r?.real ? { path: r.coords, km: +r.distanceKm.toFixed(1) } : {}) })
+    }
     toast('أضيفت 3 خطوط لسيدي بلعباس — عدّلها كيما تحب', 'success')
   }
   return (
@@ -554,6 +558,11 @@ function LineEditor({ l, onClose }) {
   const save = async () => {
     if (!f.number || !f.name || (f.stops || []).length < 2) return toast('دخّل رقم الخط واسمه ومحطتين على الأقل', 'error')
     const { id, ...data } = f
+    // نحسبو المسار على الطرقات ونحفظوه، باش كل الهواتف تشوف الخط يتبع الطريق بمنعطفاتو
+    if (!data.path) {
+      const r = await route(data.stops.map((s) => s.coords)).catch(() => null)
+      if (r?.real) { data.path = r.coords; data.km = +r.distanceKm.toFixed(1) }
+    }
     await saveLine(id, data)
     toast('تم حفظ الخط ✅', 'success'); onClose()
   }

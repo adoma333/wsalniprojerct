@@ -216,7 +216,9 @@ export function Drivers() {
                 <div className="grow" style={{ minWidth: 0 }}><b>{d.name}</b><div className="tiny muted num">{d.phone} • {cityName(d.city)}</div></div>
                 <StatusBadge s={{ pending: 'searching', approved: 'completed', rejected: 'cancelled', blocked: 'cancelled' }[d.status]} />
               </div>
-              <div className="flex mt small"><ClassCar type={d.vehicle?.class} w={46} /><span className="grow">{d.vehicle?.make} {d.vehicle?.model} {d.vehicle?.year}<div className="tiny muted">{d.vehicle?.color}</div></span><Plate value={d.vehicle?.plate} /></div>
+              {d.kind === 'bus'
+                ? <div className="flex mt small"><span className="badge blue">🚌 سائق حافلة</span><span className="grow">{d.bus?.number ? `حافلة ${d.bus.number}` : ''} {d.bus?.operator ? `• ${d.bus.operator}` : ''}<div className="tiny muted">{d.broadcasting ? '🟢 يبث الآن' : 'لا يبث'}</div></span><Plate value={d.bus?.plate || d.vehicle?.plate} /></div>
+                : <div className="flex mt small"><ClassCar type={d.vehicle?.class} w={46} /><span className="grow">{d.vehicle?.make} {d.vehicle?.model} {d.vehicle?.year}<div className="tiny muted">{d.vehicle?.color}{d.gender === 'f' ? ' • 👩 شيفورة' : ''}</div></span><Plate value={d.vehicle?.plate} /></div>}
               <div className="flex tiny muted mt" style={{ justifyContent: 'space-between' }}><span>{trips} رحلة</span><span>★ {d.ratingCount ? (((d.ratingSum || 0) + 5) / (d.ratingCount + 1)).toFixed(1) : '5.0'}</span><span className="num">محفظة {money(d.wallet || 0)}</span><span>{timeAgo(d.createdAt || Date.now())}</span></div>
             </button>
           )
